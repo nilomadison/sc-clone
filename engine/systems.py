@@ -79,3 +79,75 @@ class GrowthSystem:
                         if random.random() < 0.1:
                             tile.population = max(tile.population - 1, 0)
 
+
+class DemandSystem:
+    """
+    Calculates RCI (Residential/Commercial/Industrial) demand.
+    Demand ranges from -1.0 (oversupply) to 1.0 (high demand).
+    """
+    
+    def __init__(self):
+        self.residential = 0.0
+        self.commercial = 0.0
+        self.industrial = 0.0
+    
+    def update(self, grid):
+        """Recalculate demand based on current city state."""
+        # Count total population by zone type
+        r_pop = 0  # Residential population (workers/consumers)
+        c_pop = 0  # Commercial population (jobs/services)
+        i_pop = 0  # Industrial population (jobs/goods)
+        
+        # Count zones
+        r_zones = 0
+        c_zones = 0
+        i_zones = 0
+        
+        for x in range(grid.width):
+            for y in range(grid.height):
+                tile = grid.tiles[x][y]
+                if tile.type == 'residential':
+                    r_pop += tile.population
+                    r_zones += 1
+                elif tile.type == 'commercial':
+                    c_pop += tile.population
+                    c_zones += 1
+                elif tile.type == 'industrial':
+                    i_pop += tile.population
+                    i_zones += 1
+        
+        # Calculate demand based on balance
+        # Residential demand: driven by available jobs (C + I)
+        total_jobs = c_pop + i_pop
+        if r_pop == 0:
+            self.residential = 0.5  # Need some residents to start
+        else:
+            # More jobs than workers = need more residential
+            job_ratio = total_jobs / r_pop if r_pop > 0 else 1.0
+            self.residential = max(-1.0, min(1.0, (job_ratio - 1.0)))
+        
+        # Commercial demand: driven by residential population
+        if r_pop == 0:
+            self.commercial = -0.5  # No customers
+        else:
+            # Need commercial to serve residents
+            service_ratio = c_pop / r_pop if r_pop > 0 else 0
+            # Ideal ratio is about 0.3 commercial per resident
+            self.commercial = max(-1.0, min(1.0, (0.3 - service_ratio) * 3))
+        
+        # Industrial demand: driven by commercial (goods needed)
+        if c_pop == 0:
+            self.industrial = 0.3  # Base industrial need
+        else:
+            # Industrial supplies commercial
+            supply_ratio = i_pop / c_pop if c_pop > 0 else 0
+            # Ideal ratio is about 0.5 industrial per commercial
+            self.industrial = max(-1.0, min(1.0, (0.5 - supply_ratio) * 2))
+        
+        # Boost demand for empty zone types to encourage building
+        if r_zones == 0:
+            self.residential = 1.0
+        if c_zones == 0 and r_pop > 5:
+            self.commercial = 0.8
+        if i_zones == 0 and c_pop > 3:
+            self.industrial = 0.8

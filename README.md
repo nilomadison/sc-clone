@@ -9,6 +9,9 @@ A simple city-building simulation game built with Python and Pygame-ce.
 - **Utilities**: Power Plants with power distribution logic.
 - **Simulation**: Basic population growth and decay mechanics.
 - **Tools**: Drag-and-drop placement for zones and roads.
+- **Economy**: Starting funds ($20,000), zone placement costs, and tax income.
+- **RCI Demand**: Visual meter showing zone type demand.
+- **Save/Load**: Persist your city to disk and load it later.
 
 ## Setup
 
@@ -38,3 +41,19 @@ python main.py
 - **Right Click + Drag**: Pan camera
 - **Number Keys (1-6)**: Select tools
 - **0 Key**: Select Bulldoze tool
+- **Ctrl+S**: Save game
+- **Ctrl+L**: Load game
+
+## Economy
+
+| Item | Cost |
+|------|------|
+| Residential Zone | $100 |
+| Commercial Zone | $100 |
+| Industrial Zone | $100 |
+| Road | $10 |
+| Power Plant | $3,000 |
+| Power Line | $5 |
+| Bulldoze | $1 |
+
+Tax income is collected automatically based on zone population.
