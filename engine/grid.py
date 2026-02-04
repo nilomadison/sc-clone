@@ -4,12 +4,15 @@ class Tile:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.type = 'grass'  # Types: grass, road, residential, commercial, industrial, power_plant
+        self.type = 'grass'  # Types: grass, road, residential, commercial, industrial, power_plant, police
         self.has_power_line = False  # Power lines are an overlay, not a type
         self.is_powered = False
         self.population = 0
         self.structure = None # For complex structures if needed later
         self.sprite_index = 0 # For variation
+        # v0.3.0: City services
+        self.land_value = 50  # 0-100 scale
+        self.crime_level = 0.0  # 0.0-1.0 scale
 
     @property
     def needs_power(self):

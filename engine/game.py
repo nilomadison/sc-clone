@@ -6,6 +6,8 @@ from engine.grid import Grid
 from engine.renderer import Renderer
 from engine.systems import PowerSystem, GrowthSystem, DemandSystem
 from engine.economy import EconomySystem
+from engine.crime import CrimeSystem
+from engine.land_value import LandValueSystem
 
 # Toolbar button configuration
 TOOLBAR_HEIGHT = 60
@@ -20,6 +22,7 @@ TOOLS = [
     ('road', 'Road', (100, 100, 100)),
     ('power_plant', 'Power Plant', (200, 50, 0)),
     ('power_line', 'Power Line', (200, 180, 0)),
+    ('police', 'Police', (0, 100, 255)),
     ('grass', 'Bulldoze', (100, 50, 50)),
 ]
 
@@ -40,6 +43,8 @@ class Game:
         self.power_system = PowerSystem()
         self.growth_system = GrowthSystem()
         self.demand_system = DemandSystem()
+        self.crime_system = CrimeSystem()
+        self.land_value_system = LandValueSystem()
         self.economy = EconomySystem()
         self.tick_timer = 0
         self.last_income = 0  # Track income for display
@@ -47,6 +52,10 @@ class Game:
         # Notification system for user feedback
         self.notification_message = None
         self.notification_timer = 0
+        
+        # v0.3.0: Data overlays and budget
+        self.current_overlay = None  # None, 'crime', 'land_value', 'power'
+        self.show_budget = False
         
         self.current_tool = 'road'
         
@@ -100,13 +109,33 @@ class Game:
                         self.save_game()
                     elif event.key == pygame.K_l:
                         self.load_game()
+                # Tool selection
                 elif event.key == pygame.K_1: self.current_tool = 'residential'
                 elif event.key == pygame.K_2: self.current_tool = 'commercial'
                 elif event.key == pygame.K_3: self.current_tool = 'industrial'
                 elif event.key == pygame.K_4: self.current_tool = 'road'
                 elif event.key == pygame.K_5: self.current_tool = 'power_plant'
                 elif event.key == pygame.K_6: self.current_tool = 'power_line'
+                elif event.key == pygame.K_7: self.current_tool = 'police'
                 elif event.key == pygame.K_0: self.current_tool = 'grass'
+                # Data overlays
+                elif event.key == pygame.K_c:
+                    self.current_overlay = 'crime' if self.current_overlay != 'crime' else None
+                elif event.key == pygame.K_v:
+                    self.current_overlay = 'land_value' if self.current_overlay != 'land_value' else None
+                elif event.key == pygame.K_p:
+                    self.current_overlay = 'power' if self.current_overlay != 'power' else None
+                elif event.key == pygame.K_ESCAPE:
+                    self.current_overlay = None
+                    self.show_budget = False
+                # Budget panel
+                elif event.key == pygame.K_b:
+                    self.show_budget = not self.show_budget
+                # Tax rate adjustment (when budget is open)
+                elif event.key == pygame.K_UP and self.show_budget:
+                    self.economy.tax_rate = min(20, self.economy.tax_rate + 1)
+                elif event.key == pygame.K_DOWN and self.show_budget:
+                    self.economy.tax_rate = max(1, self.economy.tax_rate - 1)
                 # Cancel drag if tool changes
                 self.drag_start = None
                 self.drag_end = None
@@ -270,7 +299,10 @@ class Game:
             self.power_system.update(self.grid)
             self.growth_system.update(self.grid)
             self.demand_system.update(self.grid)
+            self.crime_system.update(self.grid)
+            self.land_value_system.update(self.grid)
             self.last_income = self.economy.collect_taxes(self.grid)
+            self.economy.deduct_upkeep(self.grid)
         
         # Notification timer countdown
         if self.notification_timer > 0:
@@ -279,7 +311,7 @@ class Game:
                 self.notification_message = None
 
     def render(self):
-        self.renderer.draw()
+        self.renderer.draw(overlay_mode=self.current_overlay)
         
         # Draw Toolbar background
         toolbar_rect = pygame.Rect(0, self.screen_height - TOOLBAR_HEIGHT, self.screen_width, TOOLBAR_HEIGHT)
@@ -323,9 +355,14 @@ class Game:
         self._draw_rci_bars()
         
         # Instructions
-        instructions = "Keys 1-6, 0 | Left-click: Build | Right-drag: Pan | Ctrl+S: Save | Ctrl+L: Load"
+        instructions = "1-7,0: Tools | C/V/P: Overlays | B: Budget | Ctrl+S/L: Save/Load"
         instr_surf = self.font.render(instructions, True, (180, 180, 180))
         self.screen.blit(instr_surf, (10, 40))
+        
+        # Show current overlay mode
+        if self.current_overlay:
+            overlay_text = self.font.render(f'Overlay: {self.current_overlay.upper().replace("_", " ")}', True, (255, 200, 100))
+            self.screen.blit(overlay_text, (10, 90))
         
         # Draw drag preview or regular cursor
         drag_rect = self.get_drag_rect()
@@ -341,11 +378,14 @@ class Game:
         if self.notification_message:
             notif_surf = self.font_large.render(self.notification_message, True, (255, 255, 100))
             notif_rect = notif_surf.get_rect(center=(self.screen_width // 2, 100))
-            # Background for readability
             bg_rect = notif_rect.inflate(20, 10)
             pygame.draw.rect(self.screen, (40, 40, 40), bg_rect)
             pygame.draw.rect(self.screen, (100, 100, 100), bg_rect, 2)
             self.screen.blit(notif_surf, notif_rect)
+        
+        # Draw budget panel if open
+        if self.show_budget:
+            self._draw_budget_panel()
         
         pygame.display.flip()
     
@@ -391,6 +431,56 @@ class Game:
             label_surf = self.font.render(label, True, (255, 255, 255))
             self.screen.blit(label_surf, (x + 5, bar_y + bar_height + 2))
     
+    def _draw_budget_panel(self):
+        """Draw the budget panel overlay."""
+        # Panel dimensions
+        panel_width = 300
+        panel_height = 200
+        panel_x = (self.screen_width - panel_width) // 2
+        panel_y = (self.screen_height - panel_height) // 2
+        
+        # Panel background
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
+        pygame.draw.rect(self.screen, (30, 30, 40), panel_rect)
+        pygame.draw.rect(self.screen, (100, 100, 120), panel_rect, 3)
+        
+        # Title
+        title = self.font_large.render("CITY BUDGET", True, (255, 255, 255))
+        self.screen.blit(title, (panel_x + 80, panel_y + 10))
+        
+        y_offset = panel_y + 50
+        
+        # Treasury
+        treasury_text = self.font_large.render(f"Treasury: ${self.economy.money:,}", True, (100, 255, 100))
+        self.screen.blit(treasury_text, (panel_x + 20, y_offset))
+        
+        y_offset += 35
+        
+        # Tax Rate with arrows
+        tax_text = self.font_large.render(f"Tax Rate: {self.economy.tax_rate}%", True, (255, 255, 255))
+        self.screen.blit(tax_text, (panel_x + 20, y_offset))
+        
+        # Arrow indicators
+        arrows = self.font.render("(Up/Down to adjust)", True, (150, 150, 150))
+        self.screen.blit(arrows, (panel_x + 160, y_offset + 5))
+        
+        y_offset += 35
+        
+        # Income/Expenses
+        income_text = self.font.render(f"Last Income: +${self.last_income}/tick", True, (150, 255, 150))
+        self.screen.blit(income_text, (panel_x + 20, y_offset))
+        
+        y_offset += 25
+        
+        upkeep_text = self.font.render(f"Upkeep: -${self.economy.last_upkeep}/tick", True, (255, 150, 150))
+        self.screen.blit(upkeep_text, (panel_x + 20, y_offset))
+        
+        y_offset += 35
+        
+        # Close hint
+        close_text = self.font.render("Press B or Esc to close", True, (150, 150, 150))
+        self.screen.blit(close_text, (panel_x + 70, y_offset))
+    
     def save_game(self, filepath='saves/city.json'):
         """Save the current game state to a JSON file."""
         # Ensure saves directory exists
@@ -412,7 +502,7 @@ class Game:
                     })
         
         save_data = {
-            'version': '0.2.0',
+            'version': '0.3.0',
             'grid': {
                 'width': self.grid.width,
                 'height': self.grid.height,

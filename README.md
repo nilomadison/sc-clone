@@ -7,10 +7,13 @@ A simple city-building simulation game built with Python and Pygame-ce.
 - **Zoning**: Residential, Commercial, and Industrial zones.
 - **Infrastructure**: Roads and Power Lines.
 - **Utilities**: Power Plants with power distribution logic.
-- **Simulation**: Basic population growth and decay mechanics.
+- **City Services**: Police Stations reduce crime in their coverage radius.
+- **Simulation**: Population growth, crime levels, and land value dynamics.
 - **Tools**: Drag-and-drop placement for zones and roads.
-- **Economy**: Starting funds ($20,000), zone placement costs, and tax income.
+- **Economy**: Starting funds ($20,000), zone placement costs, tax income, and service upkeep.
 - **RCI Demand**: Visual meter showing zone type demand.
+- **Data Overlays**: Toggle views for crime, land value, and power distribution.
+- **Budget Panel**: Adjust tax rates and view income/expenses.
 - **Save/Load**: Persist your city to disk and load it later.
 
 ## Setup
@@ -37,23 +40,32 @@ python main.py
 
 ## Controls
 
-- **Left Click**: Select tool / Place item
-- **Right Click + Drag**: Pan camera
-- **Number Keys (1-6)**: Select tools
-- **0 Key**: Select Bulldoze tool
-- **Ctrl+S**: Save game
-- **Ctrl+L**: Load game
+| Key | Action |
+|-----|--------|
+| **Left Click** | Place item / Select tool |
+| **Right Click + Drag** | Pan camera |
+| **1-7** | Select tools (R/C/I/Road/Plant/Line/Police) |
+| **0** | Bulldoze |
+| **C** | Toggle crime overlay |
+| **V** | Toggle land value overlay |
+| **P** | Toggle power overlay |
+| **B** | Open/close budget panel |
+| **Up/Down** | Adjust tax rate (in budget) |
+| **Esc** | Close overlays/budget |
+| **Ctrl+S** | Save game |
+| **Ctrl+L** | Load game |
 
 ## Economy
 
-| Item | Cost |
-|------|------|
-| Residential Zone | $100 |
-| Commercial Zone | $100 |
-| Industrial Zone | $100 |
-| Road | $10 |
-| Power Plant | $3,000 |
-| Power Line | $5 |
-| Bulldoze | $1 |
+| Item | Cost | Upkeep |
+|------|------|--------|
+| Residential Zone | $100 | — |
+| Commercial Zone | $100 | — |
+| Industrial Zone | $100 | — |
+| Road | $10 | — |
+| Power Plant | $3,000 | $200/mo |
+| Power Line | $5 | — |
+| Police Station | $500 | $100/mo |
+| Bulldoze | $1 | — |
 
-Tax income is collected automatically based on zone population.
+Tax income is collected automatically based on zone population and current tax rate.
