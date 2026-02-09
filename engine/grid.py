@@ -13,6 +13,11 @@ class Tile:
         # v0.3.0: City services
         self.land_value = 50  # 0-100 scale
         self.crime_level = 0.0  # 0.0-1.0 scale
+        # v0.4.0: Fire & Safety
+        self.is_on_fire = False
+        self.fire_intensity = 0.0  # 0.0-1.0 scale
+        self.is_burned = False  # True if building was destroyed by fire
+        self.building_health = 1.0  # 0.0-1.0 scale, decays over time
 
     @property
     def needs_power(self):
@@ -43,6 +48,11 @@ class Grid:
             # Clear power line when bulldozing to grass
             if type_name == 'grass':
                 tile.has_power_line = False
+                # v0.4.0: Clear fire/damage state
+                tile.is_on_fire = False
+                tile.fire_intensity = 0.0
+                tile.is_burned = False
+                tile.building_health = 1.0
             return True
         return False
 

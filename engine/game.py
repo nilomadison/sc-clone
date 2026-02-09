@@ -8,6 +8,9 @@ from engine.systems import PowerSystem, GrowthSystem, DemandSystem
 from engine.economy import EconomySystem
 from engine.crime import CrimeSystem
 from engine.land_value import LandValueSystem
+from engine.fire import FireSystem
+from engine.decay import DecaySystem
+from engine.notifications import NotificationSystem
 
 # Toolbar button configuration
 TOOLBAR_HEIGHT = 60
@@ -23,6 +26,7 @@ TOOLS = [
     ('power_plant', 'Power Plant', (200, 50, 0)),
     ('power_line', 'Power Line', (200, 180, 0)),
     ('police', 'Police', (0, 100, 255)),
+    ('fire_station', 'Fire Stn', (178, 34, 34)),  # v0.4.0
     ('grass', 'Bulldoze', (100, 50, 50)),
 ]
 
@@ -45,17 +49,24 @@ class Game:
         self.demand_system = DemandSystem()
         self.crime_system = CrimeSystem()
         self.land_value_system = LandValueSystem()
+        self.fire_system = FireSystem()  # v0.4.0
+        self.decay_system = DecaySystem()  # v0.4.0
         self.economy = EconomySystem()
         self.tick_timer = 0
         self.last_income = 0  # Track income for display
         
-        # Notification system for user feedback
+        # v0.4.0: Toast notification system
+        self.notifications = NotificationSystem(self.screen_width, self.screen_height)
+        
+        # Legacy notification system for save/load messages
         self.notification_message = None
         self.notification_timer = 0
         
         # v0.3.0: Data overlays and budget
-        self.current_overlay = None  # None, 'crime', 'land_value', 'power'
+        # v0.4.0: Added 'fire' overlay
+        self.current_overlay = None  # None, 'crime', 'land_value', 'power', 'fire'
         self.show_budget = False
+        self.budget_selection = 0  # 0=tax, 1=police funding, 2=fire funding
         
         self.current_tool = 'road'
         
@@ -117,6 +128,7 @@ class Game:
                 elif event.key == pygame.K_5: self.current_tool = 'power_plant'
                 elif event.key == pygame.K_6: self.current_tool = 'power_line'
                 elif event.key == pygame.K_7: self.current_tool = 'police'
+                elif event.key == pygame.K_8: self.current_tool = 'fire_station'  # v0.4.0
                 elif event.key == pygame.K_0: self.current_tool = 'grass'
                 # Data overlays
                 elif event.key == pygame.K_c:
@@ -125,6 +137,8 @@ class Game:
                     self.current_overlay = 'land_value' if self.current_overlay != 'land_value' else None
                 elif event.key == pygame.K_p:
                     self.current_overlay = 'power' if self.current_overlay != 'power' else None
+                elif event.key == pygame.K_f:  # v0.4.0: Fire overlay
+                    self.current_overlay = 'fire' if self.current_overlay != 'fire' else None
                 elif event.key == pygame.K_ESCAPE:
                     self.current_overlay = None
                     self.show_budget = False
@@ -133,9 +147,13 @@ class Game:
                     self.show_budget = not self.show_budget
                 # Tax rate adjustment (when budget is open)
                 elif event.key == pygame.K_UP and self.show_budget:
-                    self.economy.tax_rate = min(20, self.economy.tax_rate + 1)
+                    self.budget_selection = (self.budget_selection - 1) % 3
                 elif event.key == pygame.K_DOWN and self.show_budget:
-                    self.economy.tax_rate = max(1, self.economy.tax_rate - 1)
+                    self.budget_selection = (self.budget_selection + 1) % 3
+                elif event.key == pygame.K_LEFT and self.show_budget:
+                    self._adjust_budget_value(-1)
+                elif event.key == pygame.K_RIGHT and self.show_budget:
+                    self._adjust_budget_value(1)
                 # Cancel drag if tool changes
                 self.drag_start = None
                 self.drag_end = None
@@ -301,14 +319,19 @@ class Game:
             self.demand_system.update(self.grid)
             self.crime_system.update(self.grid)
             self.land_value_system.update(self.grid)
+            self.fire_system.update(self.grid)  # v0.4.0
+            self.decay_system.update(self.grid, self.economy)  # v0.4.0
             self.last_income = self.economy.collect_taxes(self.grid)
             self.economy.deduct_upkeep(self.grid)
         
-        # Notification timer countdown
+        # Notification timer countdown (legacy system for save/load)
         if self.notification_timer > 0:
             self.notification_timer -= 1
             if self.notification_timer <= 0:
                 self.notification_message = None
+        
+        # v0.4.0: Update toast notifications
+        self.notifications.update(self)
 
     def render(self):
         self.renderer.draw(overlay_mode=self.current_overlay)
@@ -355,7 +378,7 @@ class Game:
         self._draw_rci_bars()
         
         # Instructions
-        instructions = "1-7,0: Tools | C/V/P: Overlays | B: Budget | Ctrl+S/L: Save/Load"
+        instructions = "1-8,0: Tools | C/V/P/F: Overlays | B: Budget | Ctrl+S/L: Save/Load"
         instr_surf = self.font.render(instructions, True, (180, 180, 180))
         self.screen.blit(instr_surf, (10, 40))
         
@@ -374,7 +397,7 @@ class Game:
         else:
             self.renderer.draw_cursor(pygame.mouse.get_pos())
         
-        # Draw notification message
+        # Draw notification message (legacy)
         if self.notification_message:
             notif_surf = self.font_large.render(self.notification_message, True, (255, 255, 100))
             notif_rect = notif_surf.get_rect(center=(self.screen_width // 2, 100))
@@ -382,6 +405,9 @@ class Game:
             pygame.draw.rect(self.screen, (40, 40, 40), bg_rect)
             pygame.draw.rect(self.screen, (100, 100, 100), bg_rect, 2)
             self.screen.blit(notif_surf, notif_rect)
+        
+        # v0.4.0: Draw toast notifications
+        self.notifications.render(self.screen, self.font)
         
         # Draw budget panel if open
         if self.show_budget:
@@ -431,11 +457,22 @@ class Game:
             label_surf = self.font.render(label, True, (255, 255, 255))
             self.screen.blit(label_surf, (x + 5, bar_y + bar_height + 2))
     
+    def _adjust_budget_value(self, direction):
+        """Adjust the currently selected budget value."""
+        if self.budget_selection == 0:  # Tax rate
+            self.economy.tax_rate = max(1, min(20, self.economy.tax_rate + direction))
+        elif self.budget_selection == 1:  # Police funding
+            current = self.economy.service_funding['police']
+            self.economy.service_funding['police'] = max(0.0, min(1.0, current + direction * 0.1))
+        elif self.budget_selection == 2:  # Fire funding
+            current = self.economy.service_funding['fire']
+            self.economy.service_funding['fire'] = max(0.0, min(1.0, current + direction * 0.1))
+    
     def _draw_budget_panel(self):
         """Draw the budget panel overlay."""
         # Panel dimensions
-        panel_width = 300
-        panel_height = 200
+        panel_width = 320
+        panel_height = 280  # Taller for funding controls
         panel_x = (self.screen_width - panel_width) // 2
         panel_y = (self.screen_height - panel_height) // 2
         
@@ -446,7 +483,7 @@ class Game:
         
         # Title
         title = self.font_large.render("CITY BUDGET", True, (255, 255, 255))
-        self.screen.blit(title, (panel_x + 80, panel_y + 10))
+        self.screen.blit(title, (panel_x + 90, panel_y + 10))
         
         y_offset = panel_y + 50
         
@@ -456,13 +493,46 @@ class Game:
         
         y_offset += 35
         
-        # Tax Rate with arrows
-        tax_text = self.font_large.render(f"Tax Rate: {self.economy.tax_rate}%", True, (255, 255, 255))
+        # Selection indicator helper
+        def draw_selection(y, selected):
+            if selected:
+                pygame.draw.polygon(self.screen, (255, 255, 100), [
+                    (panel_x + 8, y + 4),
+                    (panel_x + 16, y + 10),
+                    (panel_x + 8, y + 16),
+                ])
+        
+        # Tax Rate
+        draw_selection(y_offset, self.budget_selection == 0)
+        tax_color = (255, 255, 100) if self.budget_selection == 0 else (255, 255, 255)
+        tax_text = self.font_large.render(f"Tax Rate: {self.economy.tax_rate}%", True, tax_color)
         self.screen.blit(tax_text, (panel_x + 20, y_offset))
         
-        # Arrow indicators
-        arrows = self.font.render("(Up/Down to adjust)", True, (150, 150, 150))
-        self.screen.blit(arrows, (panel_x + 160, y_offset + 5))
+        y_offset += 30
+        
+        # Police Funding
+        draw_selection(y_offset, self.budget_selection == 1)
+        police_pct = int(self.economy.service_funding['police'] * 100)
+        police_color = (255, 255, 100) if self.budget_selection == 1 else (255, 255, 255)
+        police_text = self.font.render(f"Police Funding: {police_pct}%", True, police_color)
+        self.screen.blit(police_text, (panel_x + 20, y_offset))
+        # Funding bar
+        bar_x = panel_x + 180
+        bar_width = 100
+        pygame.draw.rect(self.screen, (60, 60, 60), (bar_x, y_offset + 2, bar_width, 12))
+        pygame.draw.rect(self.screen, (0, 100, 255), (bar_x, y_offset + 2, int(bar_width * self.economy.service_funding['police']), 12))
+        
+        y_offset += 25
+        
+        # Fire Funding
+        draw_selection(y_offset, self.budget_selection == 2)
+        fire_pct = int(self.economy.service_funding['fire'] * 100)
+        fire_color = (255, 255, 100) if self.budget_selection == 2 else (255, 255, 255)
+        fire_text = self.font.render(f"Fire Funding: {fire_pct}%", True, fire_color)
+        self.screen.blit(fire_text, (panel_x + 20, y_offset))
+        # Funding bar
+        pygame.draw.rect(self.screen, (60, 60, 60), (bar_x, y_offset + 2, bar_width, 12))
+        pygame.draw.rect(self.screen, (178, 34, 34), (bar_x, y_offset + 2, int(bar_width * self.economy.service_funding['fire']), 12))
         
         y_offset += 35
         
@@ -470,12 +540,18 @@ class Game:
         income_text = self.font.render(f"Last Income: +${self.last_income}/tick", True, (150, 255, 150))
         self.screen.blit(income_text, (panel_x + 20, y_offset))
         
-        y_offset += 25
+        y_offset += 22
         
         upkeep_text = self.font.render(f"Upkeep: -${self.economy.last_upkeep}/tick", True, (255, 150, 150))
         self.screen.blit(upkeep_text, (panel_x + 20, y_offset))
         
-        y_offset += 35
+        y_offset += 30
+        
+        # Controls hint
+        controls = self.font.render("Up/Down: Select | Left/Right: Adjust", True, (150, 150, 150))
+        self.screen.blit(controls, (panel_x + 30, y_offset))
+        
+        y_offset += 20
         
         # Close hint
         close_text = self.font.render("Press B or Esc to close", True, (150, 150, 150))
@@ -492,17 +568,23 @@ class Game:
             for y in range(self.grid.height):
                 tile = self.grid.tiles[x][y]
                 # Only save non-default tiles to reduce file size
-                if tile.type != 'grass' or tile.has_power_line or tile.population > 0:
+                if (tile.type != 'grass' or tile.has_power_line or tile.population > 0 or
+                    tile.is_on_fire or tile.is_burned or tile.building_health < 1.0):
                     tiles_data.append({
                         'x': x,
                         'y': y,
                         'type': tile.type,
                         'has_power_line': tile.has_power_line,
                         'population': tile.population,
+                        # v0.4.0: Fire state
+                        'is_on_fire': tile.is_on_fire,
+                        'fire_intensity': tile.fire_intensity,
+                        'is_burned': tile.is_burned,
+                        'building_health': tile.building_health,
                     })
         
         save_data = {
-            'version': '0.3.0',
+            'version': '0.4.0',
             'grid': {
                 'width': self.grid.width,
                 'height': self.grid.height,
@@ -544,6 +626,11 @@ class Game:
                     tile.type = tile_data['type']
                     tile.has_power_line = tile_data.get('has_power_line', False)
                     tile.population = tile_data.get('population', 0)
+                    # v0.4.0: Fire state
+                    tile.is_on_fire = tile_data.get('is_on_fire', False)
+                    tile.fire_intensity = tile_data.get('fire_intensity', 0.0)
+                    tile.is_burned = tile_data.get('is_burned', False)
+                    tile.building_health = tile_data.get('building_health', 1.0)
             
             # Restore economy
             self.economy.from_dict(save_data.get('economy', {}))

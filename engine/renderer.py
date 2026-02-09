@@ -1,4 +1,5 @@
 import pygame
+import random
 
 # Colors
 COLOR_GRASS = (139, 90, 43)  # Brown - to differentiate from residential green
@@ -9,6 +10,8 @@ COLOR_INDUSTRIAL = (255, 255, 0)
 COLOR_POWER_PLANT = (255, 69, 0)
 COLOR_POWER_LINE = (255, 215, 0)
 COLOR_POLICE = (0, 100, 255)
+COLOR_FIRE_STATION = (178, 34, 34)  # v0.4.0: Firebrick red
+COLOR_BURNED = (40, 40, 40)  # v0.4.0: Charred rubble
 COLOR_HIGHLIGHT = (255, 255, 255)
 COLOR_GRID_LINES = (50, 50, 50)
 
@@ -57,6 +60,11 @@ class Renderer:
                 elif tile.type == 'industrial': base_color = COLOR_INDUSTRIAL
                 elif tile.type == 'power_plant': base_color = COLOR_POWER_PLANT
                 elif tile.type == 'police': base_color = COLOR_POLICE
+                elif tile.type == 'fire_station': base_color = COLOR_FIRE_STATION  # v0.4.0
+                
+                # v0.4.0: Burned tiles are charred rubble
+                if tile.is_burned:
+                    base_color = COLOR_BURNED
                 
                 # Adjust color based on population (Darker = Empty, Brighter = Full)
                 final_color = list(base_color)
@@ -69,7 +77,11 @@ class Renderer:
                         final_color = [c * 0.5 for c in final_color]
                     elif not tile.is_powered:
                          final_color = [c * 0.5 for c in final_color]
-
+                
+                # v0.4.0: Darken damaged buildings
+                if tile.building_health < 1.0 and not tile.is_burned:
+                    health_factor = 0.4 + (tile.building_health * 0.6)  # 0.4 to 1.0
+                    final_color = [c * health_factor for c in final_color]
                 pygame.draw.rect(self.screen, final_color, rect)
                 
                 # Draw power line as overlay if tile has power line
@@ -99,6 +111,10 @@ class Renderer:
                 # Draw data overlay if active
                 if overlay_mode:
                     self._draw_overlay_tile(tile, sx, sy, overlay_mode)
+                
+                # v0.4.0: Draw fire effect on burning tiles
+                if tile.is_on_fire:
+                    self._draw_fire_effect(tile, sx, sy)
 
     def _draw_overlay_tile(self, tile, sx, sy, overlay_mode):
         """Draw data overlay on a single tile."""
@@ -124,8 +140,56 @@ class Renderer:
                 overlay_surface.fill((255, 255, 0, 100))  # Yellow for powered
             elif tile.needs_power:
                 overlay_surface.fill((255, 0, 0, 150))  # Red for needs power but unpowered
+        elif overlay_mode == 'fire':  # v0.4.0: Fire overlay
+            if tile.is_on_fire:
+                overlay_surface.fill((255, 100, 0, 200))  # Bright orange for active fire
+            elif tile.is_burned:
+                overlay_surface.fill((80, 80, 80, 150))  # Gray for burned
+            elif tile.type in ['industrial', 'power_plant']:
+                # Fire risk - industrial/power plants can ignite
+                overlay_surface.fill((255, 150, 0, 80))  # Light orange for fire risk
+            elif tile.building_health < 1.0:
+                # Damaged buildings
+                damage = 1.0 - tile.building_health
+                overlay_surface.fill((255, 0, 0, int(damage * 150)))
         
         self.screen.blit(overlay_surface, (sx, sy))
+    
+    def _draw_fire_effect(self, tile, sx, sy):
+        """Draw flickering fire effect on a burning tile."""
+        # Create a semi-transparent fire overlay
+        fire_surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
+        
+        # Flickering intensity based on fire_intensity and random variation
+        flicker = random.uniform(0.7, 1.0)
+        intensity = tile.fire_intensity * flicker
+        
+        # Orange-red gradient based on intensity
+        r = min(255, int(200 + intensity * 55))
+        g = max(0, int(150 - intensity * 100))
+        b = 0
+        alpha = int(100 + intensity * 100)
+        
+        fire_surface.fill((r, g, b, alpha))
+        self.screen.blit(fire_surface, (sx, sy))
+        
+        # Draw flame symbols
+        flame_color = (255, int(200 * (1 - intensity)), 0)
+        
+        # Simple flame shapes
+        center_x = sx + TILE_SIZE // 2
+        center_y = sy + TILE_SIZE // 2
+        
+        # Random flame positions for flickering effect
+        for _ in range(int(2 + intensity * 3)):
+            fx = center_x + random.randint(-8, 8)
+            fy = center_y + random.randint(-8, 8)
+            flame_height = int(6 + intensity * 6)
+            pygame.draw.polygon(self.screen, flame_color, [
+                (fx, fy + flame_height // 2),
+                (fx - 3, fy + flame_height),
+                (fx + 3, fy + flame_height),
+            ])
 
     def draw_cursor(self, mouse_pos):
         mx, my = mouse_pos

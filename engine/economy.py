@@ -15,6 +15,7 @@ ZONE_COSTS = {
     'power_plant': 3000,
     'power_line': 5,
     'police': 500,
+    'fire_station': 500,  # v0.4.0
     'grass': 1,  # Bulldoze cost
 }
 
@@ -22,6 +23,7 @@ ZONE_COSTS = {
 UPKEEP_COSTS = {
     'police': 100,
     'power_plant': 200,
+    'fire_station': 150,  # v0.4.0
 }
 
 # Base tax income per population per simulation tick
@@ -39,6 +41,11 @@ class EconomySystem:
         self.money = STARTING_MONEY
         self.tax_rate = 7  # Percentage (1-20)
         self.last_upkeep = 0  # Track for display
+        # v0.4.0: Service funding levels (0.0 to 1.0)
+        self.service_funding = {
+            'police': 1.0,
+            'fire': 1.0,
+        }
     
     def get_placement_cost(self, tile_type):
         """Get the cost to place a tile of the given type."""
@@ -88,11 +95,20 @@ class EconomySystem:
         for x in range(grid.width):
             for y in range(grid.height):
                 tile = grid.tiles[x][y]
-                cost = UPKEEP_COSTS.get(tile.type, 0)
+                base_cost = UPKEEP_COSTS.get(tile.type, 0)
+                
+                # v0.4.0: Scale upkeep by funding level
+                if tile.type == 'police':
+                    cost = base_cost * self.service_funding.get('police', 1.0)
+                elif tile.type == 'fire_station':
+                    cost = base_cost * self.service_funding.get('fire', 1.0)
+                else:
+                    cost = base_cost
+                
                 upkeep += cost
         
         # Upkeep is deducted per tick (scaled down since it runs frequently)
-        upkeep_per_tick = upkeep // 60  # Spread monthly cost over ~60 ticks
+        upkeep_per_tick = int(upkeep) // 60  # Spread monthly cost over ~60 ticks
         self.money -= upkeep_per_tick
         self.last_upkeep = upkeep_per_tick
         return upkeep_per_tick
@@ -102,9 +118,12 @@ class EconomySystem:
         return {
             'money': self.money,
             'tax_rate': self.tax_rate,
+            'service_funding': self.service_funding,  # v0.4.0
         }
     
     def from_dict(self, data):
         """Restore economy state from saved data."""
         self.money = data.get('money', STARTING_MONEY)
         self.tax_rate = data.get('tax_rate', 7)
+        # v0.4.0: Restore service funding
+        self.service_funding = data.get('service_funding', {'police': 1.0, 'fire': 1.0})

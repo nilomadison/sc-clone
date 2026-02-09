@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.4.0] - 2026-02-06
+
+### Added
+- **Fire System**: Fires can randomly ignite on industrial zones and power plants
+- **Fire Spread**: Active fires spread to adjacent buildings, damaging them over time
+- **Fire Stations**: New building type ($500, $150/mo upkeep) that protects an 8-tile radius
+- **Auto-Extinguish**: Fires in fire station coverage are extinguished faster
+- **Building Decay**: Underfunded services cause buildings to deteriorate
+- **Building Health**: Structures now have health; damaged buildings appear darker
+- **Toast Notifications**: Pop-up alerts for fires, budget warnings, and building collapses
+- **Service Funding**: Control police and fire department funding levels (0-100%)
+- **Fire Overlay**: Press F to view fire risk and active fires
+
+### Changed
+- Budget panel now allows navigation (Up/Down) and value adjustment (Left/Right)
+- Upkeep costs scale with service funding levels
+- Tiles now store `is_on_fire`, `fire_intensity`, `is_burned`, and `building_health` properties
+- Save format updated to version 0.4.0 with fire state persistence
+- Updated controls: 1-8 for tools, F for fire overlay
+
 ## [v0.3.0] - 2026-02-04
 
 ### Added
