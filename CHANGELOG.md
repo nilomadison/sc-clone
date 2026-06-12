@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.6.0] - 2026-06-11
+
+### Added
+- **Game clock**: in-game calendar (month/year in the HUD); taxes and upkeep now settle monthly instead of per-tick (same average cash flow, classic budget feel)
+- **Pause & speed controls**: Space pauses; -/+ cycles 1x/2x/3x simulation speed
+- **Tile type registry** (`engine/tiles.py`): every per-type table (costs, upkeep, tax rates, flammability, crime, land value, colors, toolbar) now derives from one registry
+
+### Changed
+- **Massive simulation speedup (~35x)**: crime and land value are now incremental scatter fields (`engine/fields.py`), the grid keeps a type→positions index, and the fire system tracks burning tiles incrementally. A dense 100×100 city went from ~1160ms to ~33ms per tick
+- `Game` split up: UI drawing moved to `engine/ui.py`, save/load to `engine/save.py`
+- Toast notifications are now the only notification system (legacy banner removed)
+- Population HUD stat is cached per tick instead of recomputed every frame
+
+### Fixed
+- Loading a save now fully rebuilds system state (burning fires resume burning; stale crime/land-value fields are reset)
+
 ## [v0.5.0] - 2026-06-11
 
 ### Added

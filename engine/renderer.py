@@ -1,16 +1,13 @@
 import pygame
 import random
 
-# Colors
-COLOR_GRASS = (139, 90, 43)  # Brown - to differentiate from residential green
-COLOR_ROAD = (105, 105, 105)
-COLOR_RESIDENTIAL = (0, 255, 0)
-COLOR_COMMERCIAL = (0, 0, 255)
-COLOR_INDUSTRIAL = (255, 255, 0)
-COLOR_POWER_PLANT = (255, 69, 0)
-COLOR_POWER_LINE = (255, 215, 0)
-COLOR_POLICE = (0, 100, 255)
-COLOR_FIRE_STATION = (178, 34, 34)  # v0.4.0: Firebrick red
+from engine.tiles import TILE_TYPES, field_map
+
+# Map colors come from the tile type registry
+TYPE_COLORS = field_map('color')
+
+COLOR_POWER_LINE = TILE_TYPES['power_line']['color']
+COLOR_ROAD = TILE_TYPES['road']['color']
 COLOR_BURNED = (40, 40, 40)  # v0.4.0: Charred rubble
 COLOR_HIGHLIGHT = (255, 255, 255)
 COLOR_GRID_LINES = (50, 50, 50)
@@ -23,7 +20,6 @@ class Renderer:
         self.grid = grid
         self.camera_x = 0
         self.camera_y = 0
-        self.zoom = 1.0 # Placeholder for now, simplistic implementation
         self.screen_width, self.screen_height = screen.get_size()
 
     def world_to_screen(self, world_x, world_y):
@@ -53,15 +49,8 @@ class Renderer:
                 sx, sy = self.world_to_screen(x, y)
                 rect = (sx, sy, TILE_SIZE, TILE_SIZE)
 
-                base_color = COLOR_GRASS
-                if tile.type == 'road': base_color = COLOR_ROAD
-                elif tile.type == 'residential': base_color = COLOR_RESIDENTIAL
-                elif tile.type == 'commercial': base_color = COLOR_COMMERCIAL
-                elif tile.type == 'industrial': base_color = COLOR_INDUSTRIAL
-                elif tile.type == 'power_plant': base_color = COLOR_POWER_PLANT
-                elif tile.type == 'police': base_color = COLOR_POLICE
-                elif tile.type == 'fire_station': base_color = COLOR_FIRE_STATION  # v0.4.0
-                
+                base_color = TYPE_COLORS[tile.type]
+
                 # v0.4.0: Burned tiles are charred rubble
                 if tile.is_burned:
                     base_color = COLOR_BURNED
@@ -204,14 +193,7 @@ class Renderer:
         min_x, min_y, max_x, max_y = world_rect
         
         # Get the zone color
-        if zone_type == 'residential':
-            zone_color = COLOR_RESIDENTIAL
-        elif zone_type == 'commercial':
-            zone_color = COLOR_COMMERCIAL
-        elif zone_type == 'industrial':
-            zone_color = COLOR_INDUSTRIAL
-        else:
-            zone_color = COLOR_HIGHLIGHT
+        zone_color = TYPE_COLORS.get(zone_type, COLOR_HIGHLIGHT)
         
         preview_width = (max_x - min_x + 1) * TILE_SIZE
         preview_height = (max_y - min_y + 1) * TILE_SIZE

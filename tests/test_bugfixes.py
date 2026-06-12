@@ -44,7 +44,7 @@ def test_rubble_pays_no_taxes():
     tile.population = 10  # Stale population should still not be taxed
 
     eco = EconomySystem()
-    assert eco.collect_taxes(grid) == 0
+    assert eco.tax_income_per_tick(grid) == 0
 
 
 def test_rubble_does_not_conduct_power():

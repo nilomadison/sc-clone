@@ -1,6 +1,9 @@
 from collections import deque
 import random
 
+from engine.tiles import POWER_CONDUCTOR_TYPES, ZONE_TYPES
+
+
 class PowerSystem:
     def update(self, grid):
         # Reset power for all tiles
@@ -10,11 +13,9 @@ class PowerSystem:
 
         # Find power sources
         sources = []
-        for x in range(grid.width):
-            for y in range(grid.height):
-                if grid.tiles[x][y].type == 'power_plant':
-                    sources.append((x, y))
-                    grid.tiles[x][y].is_powered = True
+        for x, y in grid.positions('power_plant'):
+            sources.append((x, y))
+            grid.tiles[x][y].is_powered = True
 
         # Propagate power (BFS) through power lines
         # Assumption: Power travels through 'power_line' and 'power_plant'
@@ -38,7 +39,7 @@ class PowerSystem:
                         # Power conductors: power_line (overlay), power_plant, and
                         # intact RCI zones (burned rubble doesn't conduct)
                         if neighbor.has_power_line or (not neighbor.is_burned and
-                                neighbor.type in ['power_plant', 'residential', 'commercial', 'industrial']):
+                                neighbor.type in POWER_CONDUCTOR_TYPES):
                             neighbor.is_powered = True
                             visited.add((nx, ny))
                             queue.append((nx, ny))
@@ -54,35 +55,33 @@ class GrowthSystem:
         # 2. Needs Road Access (adjacent to road)
         # 3. Random chance to grow
         
-        for x in range(grid.width):
-            for y in range(grid.height):
-                tile = grid.tiles[x][y]
-                if tile.type in ['residential', 'commercial', 'industrial']:
-                    # Burned rubble is dead until bulldozed and rebuilt
-                    if tile.is_burned:
-                        continue
-                    if tile.is_powered:
-                        # Check for road adjacency
-                        has_road = False
-                        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                            nx, ny = x + dx, y + dy
-                            if 0 <= nx < grid.width and 0 <= ny < grid.height:
-                                if grid.tiles[nx][ny].type == 'road':
-                                    has_road = True
-                                    break
-                        
-                        if has_road:
-                            # Grow population
-                            if random.random() < 0.01: # 1% chance per tick
-                                tile.population = min(tile.population + 1, 10)
-                        else:
-                             # Decay if no road
-                             if random.random() < 0.05:
-                                 tile.population = max(tile.population - 1, 0)
-                    else:
-                        # Decay if no power
-                        if random.random() < 0.1:
-                            tile.population = max(tile.population - 1, 0)
+        for x, y in grid.positions(*ZONE_TYPES):
+            tile = grid.tiles[x][y]
+            # Burned rubble is dead until bulldozed and rebuilt
+            if tile.is_burned:
+                continue
+            if tile.is_powered:
+                # Check for road adjacency
+                has_road = False
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < grid.width and 0 <= ny < grid.height:
+                        if grid.tiles[nx][ny].type == 'road':
+                            has_road = True
+                            break
+
+                if has_road:
+                    # Grow population
+                    if random.random() < 0.01: # 1% chance per tick
+                        tile.population = min(tile.population + 1, 10)
+                else:
+                    # Decay if no road
+                    if random.random() < 0.05:
+                        tile.population = max(tile.population - 1, 0)
+            else:
+                # Decay if no power
+                if random.random() < 0.1:
+                    tile.population = max(tile.population - 1, 0)
 
 
 class DemandSystem:
@@ -98,28 +97,13 @@ class DemandSystem:
     
     def update(self, grid):
         """Recalculate demand based on current city state."""
-        # Count total population by zone type
-        r_pop = 0  # Residential population (workers/consumers)
-        c_pop = 0  # Commercial population (jobs/services)
-        i_pop = 0  # Industrial population (jobs/goods)
-        
-        # Count zones
-        r_zones = 0
-        c_zones = 0
-        i_zones = 0
-        
-        for x in range(grid.width):
-            for y in range(grid.height):
-                tile = grid.tiles[x][y]
-                if tile.type == 'residential':
-                    r_pop += tile.population
-                    r_zones += 1
-                elif tile.type == 'commercial':
-                    c_pop += tile.population
-                    c_zones += 1
-                elif tile.type == 'industrial':
-                    i_pop += tile.population
-                    i_zones += 1
+        # Population and zone counts by type
+        r_pop = sum(grid.tiles[x][y].population for x, y in grid.positions('residential'))
+        c_pop = sum(grid.tiles[x][y].population for x, y in grid.positions('commercial'))
+        i_pop = sum(grid.tiles[x][y].population for x, y in grid.positions('industrial'))
+        r_zones = grid.count('residential')
+        c_zones = grid.count('commercial')
+        i_zones = grid.count('industrial')
         
         # Calculate demand based on balance
         # Residential demand: driven by available jobs (C + I)

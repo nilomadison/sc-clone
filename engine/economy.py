@@ -3,35 +3,19 @@ Economy system for SimCity Clone.
 Handles money, zone placement costs, and tax collection.
 """
 
+from engine.tiles import field_map
+
 # Starting money for new games
 STARTING_MONEY = 20000
 
 # Cost to place each tile type
-ZONE_COSTS = {
-    'residential': 100,
-    'commercial': 100,
-    'industrial': 100,
-    'road': 10,
-    'power_plant': 3000,
-    'power_line': 5,
-    'police': 500,
-    'fire_station': 500,  # v0.4.0
-    'grass': 1,  # Bulldoze cost
-}
+ZONE_COSTS = field_map('cost')
 
 # Monthly upkeep costs for service buildings
-UPKEEP_COSTS = {
-    'police': 100,
-    'power_plant': 200,
-    'fire_station': 150,  # v0.4.0
-}
+UPKEEP_COSTS = field_map('upkeep', lambda v: v > 0)
 
 # Base tax income per population per simulation tick
-BASE_TAX_RATES = {
-    'residential': 0.5,   # Property tax
-    'commercial': 2.0,    # Business tax
-    'industrial': 1.5,    # Industrial tax
-}
+BASE_TAX_RATES = field_map('tax_rate', lambda v: v > 0)
 
 
 class EconomySystem:
@@ -66,52 +50,52 @@ class EconomySystem:
             return True
         return False
     
-    def collect_taxes(self, grid):
-        """
-        Collect taxes from all powered zones based on their population.
-        Returns the total income collected this tick.
-        """
-        income = 0
+    def tax_income_per_tick(self, grid):
+        """Tax income rate from all intact, powered, populated zones."""
+        income = 0.0
         tax_multiplier = self.tax_rate / 7.0  # 7% is baseline
-        
-        for x in range(grid.width):
-            for y in range(grid.height):
-                tile = grid.tiles[x][y]
-                
-                # Only intact, powered tiles generate tax income
-                if tile.is_powered and tile.population > 0 and not tile.is_burned:
-                    rate = BASE_TAX_RATES.get(tile.type, 0)
-                    income += tile.population * rate * tax_multiplier
-        
-        # Round to avoid floating point accumulation issues
-        income = round(income)
+
+        for x, y in grid.positions(*BASE_TAX_RATES):
+            tile = grid.tiles[x][y]
+
+            # Only intact, powered tiles generate tax income
+            if tile.is_powered and tile.population > 0 and not tile.is_burned:
+                income += tile.population * BASE_TAX_RATES[tile.type] * tax_multiplier
+
+        return income
+
+    def collect_monthly_taxes(self, grid, ticks_per_month):
+        """Collect a month's taxes at once. Returns the income collected."""
+        income = round(self.tax_income_per_tick(grid) * ticks_per_month)
         self.money += income
         return income
-    
-    def deduct_upkeep(self, grid):
-        """Deduct upkeep costs for service buildings. Returns total upkeep."""
-        upkeep = 0
-        
-        for x in range(grid.width):
-            for y in range(grid.height):
-                tile = grid.tiles[x][y]
-                base_cost = UPKEEP_COSTS.get(tile.type, 0)
-                
-                # v0.4.0: Scale upkeep by funding level
-                if tile.type == 'police':
-                    cost = base_cost * self.service_funding.get('police', 1.0)
-                elif tile.type == 'fire_station':
-                    cost = base_cost * self.service_funding.get('fire', 1.0)
-                else:
-                    cost = base_cost
-                
-                upkeep += cost
-        
-        # Upkeep is deducted per tick (scaled down since it runs frequently)
-        upkeep_per_tick = int(upkeep) // 60  # Spread monthly cost over ~60 ticks
-        self.money -= upkeep_per_tick
-        self.last_upkeep = upkeep_per_tick
-        return upkeep_per_tick
+
+    def monthly_upkeep(self, grid):
+        """Total monthly upkeep for service buildings, scaled by funding."""
+        upkeep = 0.0
+
+        for x, y in grid.positions(*UPKEEP_COSTS):
+            tile = grid.tiles[x][y]
+            base_cost = UPKEEP_COSTS[tile.type]
+
+            # v0.4.0: Scale upkeep by funding level
+            if tile.type == 'police':
+                cost = base_cost * self.service_funding.get('police', 1.0)
+            elif tile.type == 'fire_station':
+                cost = base_cost * self.service_funding.get('fire', 1.0)
+            else:
+                cost = base_cost
+
+            upkeep += cost
+
+        return int(upkeep)
+
+    def deduct_monthly_upkeep(self, grid):
+        """Deduct a month's upkeep at once. Returns the amount deducted."""
+        upkeep = self.monthly_upkeep(grid)
+        self.money -= upkeep
+        self.last_upkeep = upkeep
+        return upkeep
     
     def to_dict(self):
         """Serialize economy state for saving."""

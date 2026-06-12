@@ -1,4 +1,5 @@
-import random
+from engine.tiles import TILE_TYPES
+
 
 class Tile:
     def __init__(self, x, y):
@@ -22,7 +23,7 @@ class Tile:
     @property
     def needs_power(self):
         """Return True if this tile type needs power to function."""
-        return self.type in ['residential', 'commercial', 'industrial']
+        return TILE_TYPES[self.type]['needs_power']
 
     def __repr__(self):
         return f"Tile({self.x}, {self.y}, {self.type}, power_line={self.has_power_line})"
@@ -32,15 +33,34 @@ class Grid:
         self.width = width
         self.height = height
         self.tiles = [[Tile(x, y) for y in range(height)] for x in range(width)]
+        # Index of non-grass tile positions by type, so systems can iterate
+        # buildings without scanning the whole map. Kept in sync by
+        # set_tile_type — never assign tile.type directly.
+        self.index = {}
 
     def get_tile(self, x, y):
         if 0 <= x < self.width and 0 <= y < self.height:
             return self.tiles[x][y]
         return None
 
+    def positions(self, *types):
+        """Iterate (x, y) positions of all tiles of the given types."""
+        for type_name in types:
+            yield from self.index.get(type_name, ())
+
+    def count(self, type_name):
+        """Number of tiles of the given type."""
+        return len(self.index.get(type_name, ()))
+
     def set_tile_type(self, x, y, type_name):
         tile = self.get_tile(x, y)
         if tile:
+            if tile.type != type_name:
+                old_set = self.index.get(tile.type)
+                if old_set:
+                    old_set.discard((x, y))
+                if type_name != 'grass':
+                    self.index.setdefault(type_name, set()).add((x, y))
             tile.type = type_name
             # Reset properties when type changes
             tile.is_powered = False

@@ -61,6 +61,8 @@ pytest
 | **V** | Toggle land value overlay |
 | **P** | Toggle power overlay |
 | **F** | Toggle fire risk overlay |
+| **Space** | Pause/resume simulation |
+| **- / +** | Simulation speed (1x/2x/3x) |
 | **B** | Open/close budget panel |
 | **Up/Down** | Navigate budget options |
 | **Left/Right** | Adjust selected budget value |
@@ -82,7 +84,7 @@ pytest
 | Fire Station | $500 | $150/mo |
 | Bulldoze | $1 | — |
 
-Tax income is collected automatically based on zone population and current tax rate.
+The game runs on a calendar (one month per real-time minute at 1x speed). Taxes are collected and service upkeep is paid at the start of each month, based on zone population and the current tax rate.
 
 ## Fire Safety
 

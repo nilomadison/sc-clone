@@ -17,7 +17,7 @@ def test_can_afford_and_deduct():
     assert not eco.deduct_cost('power_plant')
 
 
-def test_collect_taxes_only_from_powered_populated():
+def test_tax_income_only_from_powered_populated():
     eco = EconomySystem()
     grid = Grid(10, 10)
     grid.set_tile_type(1, 1, 'commercial')
@@ -25,15 +25,25 @@ def test_collect_taxes_only_from_powered_populated():
     tile.population = 10
 
     # Unpowered: no income
-    start = eco.money
-    assert eco.collect_taxes(grid) == 0
-    assert eco.money == start
+    assert eco.tax_income_per_tick(grid) == 0
 
     # Powered: income at baseline 7% tax = pop * rate
     tile.is_powered = True
-    income = eco.collect_taxes(grid)
-    assert income == 20  # 10 pop * 2.0 commercial rate * (7/7)
-    assert eco.money == start + 20
+    assert eco.tax_income_per_tick(grid) == 20  # 10 pop * 2.0 commercial rate
+
+
+def test_collect_monthly_taxes():
+    eco = EconomySystem()
+    grid = Grid(10, 10)
+    grid.set_tile_type(1, 1, 'commercial')
+    tile = grid.get_tile(1, 1)
+    tile.population = 10
+    tile.is_powered = True
+
+    start = eco.money
+    income = eco.collect_monthly_taxes(grid, ticks_per_month=60)
+    assert income == 20 * 60
+    assert eco.money == start + income
 
 
 def test_tax_rate_scales_income():
@@ -45,23 +55,26 @@ def test_tax_rate_scales_income():
     tile.is_powered = True
 
     eco.tax_rate = 14
-    assert eco.collect_taxes(grid) == 40
+    assert eco.tax_income_per_tick(grid) == 40
 
 
-def test_upkeep_scales_with_funding():
+def test_monthly_upkeep_scales_with_funding():
     eco = EconomySystem()
     grid = Grid(10, 10)
-    # 6 police stations: 600/mo => 10 per tick at full funding
+    # 6 police stations at $100/mo each
     for i in range(6):
         grid.set_tile_type(i, 0, 'police')
 
-    eco.collect_taxes(grid)
-    eco.deduct_upkeep(grid)
-    assert eco.last_upkeep == 10
+    assert eco.monthly_upkeep(grid) == 600
 
     eco.service_funding['police'] = 0.5
-    eco.deduct_upkeep(grid)
-    assert eco.last_upkeep == 5
+    assert eco.monthly_upkeep(grid) == 300
+
+    start = eco.money
+    deducted = eco.deduct_monthly_upkeep(grid)
+    assert deducted == 300
+    assert eco.money == start - 300
+    assert eco.last_upkeep == 300
 
 
 def test_serialization_round_trip():
