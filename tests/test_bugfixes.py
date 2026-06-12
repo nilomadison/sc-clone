@@ -120,7 +120,7 @@ class TestPlacement:
     @pytest.fixture()
     def game(self):
         from engine.game import Game
-        g = Game()
+        g = Game(generate_terrain=False)
         yield g
         pygame.quit()
 

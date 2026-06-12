@@ -12,13 +12,14 @@ from engine.fire import FireSystem
 from engine.tiles import ZONE_TYPES
 
 # Disaster names in panel order
-DISASTERS = ['fire', 'tornado', 'earthquake', 'monster']
+DISASTERS = ['fire', 'tornado', 'earthquake', 'monster', 'flood']
 
 MESSAGES = {
     'fire': 'A fire has broken out!',
     'tornado': 'Tornado warning!',
     'earthquake': 'Earthquake!',
     'monster': 'A monster is attacking the city!',
+    'flood': 'Flooding along the shoreline!',
 }
 
 # Building tile types disasters can damage
@@ -31,9 +32,14 @@ class DisasterSystem:
     EARTHQUAKE_IGNITE_CHANCE = 0.15
     WALKER_LIFETIME = 40         # Ticks a tornado/monster stays active
     MONSTER_IGNITE_CHANCE = 0.3  # Monster breathes fire
+    FLOOD_DURATION = 30          # Ticks before a flooded tile recedes
+    FLOOD_SPREAD_CHANCE = 0.15   # Per flooded tile per tick
+    FLOOD_MAX_TILES = 150
+    FLOOD_SEEDS = 12
 
     def __init__(self):
         self.active = None  # {'kind', 'x', 'y', 'dx', 'dy', 'ticks'} or None
+        self.flooded = {}   # (x, y) -> ticks until the water recedes
         self.events = []    # ('disaster', name) and ('collapse', x, y)
 
     def trigger(self, name, grid, fire_system):
@@ -44,6 +50,8 @@ class DisasterSystem:
             ok = self._trigger_earthquake(grid, fire_system)
         elif name in ('tornado', 'monster'):
             ok = self._spawn_walker(name, grid)
+        elif name == 'flood':
+            ok = self._trigger_flood(grid)
         else:
             return False
 
@@ -52,7 +60,8 @@ class DisasterSystem:
         return ok
 
     def update(self, grid, fire_system):
-        """Advance the active walker (if any) one step."""
+        """Advance the active walker and any flooding one step."""
+        self._update_flood(grid)
         if self.active is None:
             return
 
@@ -121,9 +130,62 @@ class DisasterSystem:
         }
         return True
 
+    def _trigger_flood(self, grid):
+        """Water spills over its banks, swallowing nearby tiles for a while."""
+        shoreline = set()
+        for x, y in grid.positions('water'):
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                neighbor = grid.get_tile(x + dx, y + dy)
+                if neighbor is not None and neighbor.type != 'water':
+                    shoreline.add((x + dx, y + dy))
+        if not shoreline:
+            return False  # No water on this map
+
+        for x, y in random.sample(sorted(shoreline),
+                                  min(self.FLOOD_SEEDS, len(shoreline))):
+            self._flood_tile(grid, x, y, self.FLOOD_DURATION)
+        return bool(self.flooded)
+
+    def _flood_tile(self, grid, x, y, duration):
+        tile = grid.get_tile(x, y)
+        if tile is None or tile.type == 'water':
+            return
+        if len(self.flooded) >= self.FLOOD_MAX_TILES:
+            return
+
+        if tile.type in BUILDING_TYPES:
+            self.events.append(('collapse', x, y))
+        grid.set_tile_type(x, y, 'water')
+        tile.is_on_fire = False
+        tile.fire_intensity = 0.0
+        tile.is_burned = False
+        tile.building_health = 1.0
+        self.flooded[(x, y)] = duration
+
+    def _update_flood(self, grid):
+        if not self.flooded:
+            return
+        for pos in list(self.flooded):
+            self.flooded[pos] -= 1
+            remaining = self.flooded[pos]
+            if remaining <= 0:
+                # The water recedes, leaving mud (anything there is long gone)
+                grid.set_tile_type(pos[0], pos[1], 'grass')
+                del self.flooded[pos]
+            elif random.random() < self.FLOOD_SPREAD_CHANCE:
+                # Spreading water inherits the remaining duration, so the
+                # whole flood crests and then fully recedes
+                dx, dy = random.choice([(-1, 0), (1, 0), (0, -1), (0, 1)])
+                self._flood_tile(grid, pos[0] + dx, pos[1] + dy, remaining)
+
     def _damage_tile(self, grid, fire_system, x, y, damage, ignite_chance):
         tile = grid.get_tile(x, y)
-        if tile is None or tile.type == 'grass' or tile.is_burned:
+        if tile is None or tile.type in ('grass', 'water') or tile.is_burned:
+            return
+
+        if tile.type == 'trees':
+            # Forests are simply flattened
+            grid.set_tile_type(x, y, 'grass')
             return
 
         if tile.type == 'road':

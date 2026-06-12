@@ -53,9 +53,11 @@ Crime and land value use `engine/fields.py` `IncrementalField`: sources scatter 
 
 Systems that destroy buildings (`FireSystem`, `DecaySystem`, `DisasterSystem`) append `('collapse', x, y)` to their `events` list — disasters also append `('disaster', name)`; `Game._drain_system_events()` forwards these to the toast `NotificationSystem` (engine/notifications.py) — the only notification mechanism.
 
-### Disasters
+### Disasters and terrain
 
-`engine/disasters.py`: instant disasters (fire, earthquake) mutate the grid in `trigger()`; tornado/monster become an `active` walker stepped by `update()` each tick and drawn by `Renderer.draw_disaster`. The D panel triggers them (keys 1-4 while open).
+`engine/disasters.py`: instant disasters (fire, earthquake) mutate the grid in `trigger()`; tornado/monster become an `active` walker stepped by `update()` each tick and drawn by `Renderer.draw_disaster`; flood tracks a `flooded` dict of tiles that spread (inheriting remaining duration) and recede to grass. The D panel triggers them (number keys while open).
+
+`engine/mapgen.py` generates terrain (river/lakes/trees) on new games — `Game(generate_terrain=False)` for tests. `'water'` is the one registry type that isn't a tool: unbuildable and un-bulldozable (checked in `Game.apply_tool`), but power lines may cross it. `'trees'` are plantable, highly flammable, and raise land value.
 
 ### UI and save modules
 

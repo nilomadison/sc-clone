@@ -19,8 +19,10 @@ def test_registry_completeness():
         assert not missing, f"{type_name} missing fields: {missing}"
 
 
-def test_tool_order_covers_registry():
-    assert set(TOOL_ORDER) == set(TILE_TYPES)
+def test_tools_exist_in_registry():
+    # Every tool is a registered type; water is terrain-only (not a tool)
+    assert set(TOOL_ORDER) <= set(TILE_TYPES)
+    assert set(TILE_TYPES) - set(TOOL_ORDER) == {'water'}
 
 
 def test_hotkeys_unique():
@@ -58,7 +60,7 @@ class TestGameIntegration:
     @pytest.fixture()
     def game(self):
         from engine.game import Game
-        g = Game()
+        g = Game(generate_terrain=False)
         yield g
         pygame.quit()
 

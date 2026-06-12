@@ -89,11 +89,26 @@ TILE_TYPES = {
         'flammability': 0.3, 'crime_rate': 0.0, 'value_modifier': 0,
         'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
     },
+    'trees': {
+        'label': 'Trees', 'hotkey': '9',
+        'color': (20, 120, 40), 'button_color': (20, 120, 40),
+        'cost': 25, 'upkeep': 0, 'tax_rate': 0.0,
+        'flammability': 0.9, 'crime_rate': 0.0, 'value_modifier': 6,
+        'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
+    },
+    'water': {
+        # Terrain only — not placeable or bulldozable. Power lines may cross.
+        'label': 'Water', 'hotkey': '',
+        'color': (30, 90, 200), 'button_color': (30, 90, 200),
+        'cost': 0, 'upkeep': 0, 'tax_rate': 0.0,
+        'flammability': 0.0, 'crime_rate': 0.0, 'value_modifier': 8,
+        'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
+    },
 }
 
-# Toolbar order (also defines hotkey display order)
+# Toolbar order (also defines hotkey display order). Water is terrain, not a tool.
 TOOL_ORDER = ['residential', 'commercial', 'industrial', 'road', 'power_plant',
-              'power_line', 'police', 'fire_station', 'grass']
+              'power_line', 'police', 'fire_station', 'trees', 'grass']
 
 # Derived lookups
 ZONE_TYPES = tuple(t for t, cfg in TILE_TYPES.items() if cfg['is_zone'])

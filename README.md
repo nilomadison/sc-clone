@@ -4,8 +4,9 @@ A simple city-building simulation game built with Python and Pygame-ce.
 
 ## Features
 
+- **Terrain**: Maps generate with a river, lakes, and forests. Water blocks fire and raises land value; trees are flammable but desirable.
 - **Zoning**: Residential, Commercial, and Industrial zones.
-- **Infrastructure**: Roads and Power Lines.
+- **Infrastructure**: Roads and Power Lines (power lines can cross water).
 - **Utilities**: Power Plants with power distribution logic.
 - **City Services**: Police and Fire Stations protect your city.
 - **Fire System**: Fires can start and spread; fire stations auto-extinguish in their radius.
@@ -55,7 +56,7 @@ pytest
 |-----|--------|
 | **Left Click** | Place item / Select tool |
 | **Right Click + Drag** | Pan camera |
-| **1-8** | Select tools (R/C/I/Road/Plant/Line/Police/Fire) |
+| **1-9** | Select tools (R/C/I/Road/Plant/Line/Police/Fire/Trees) |
 | **0** | Bulldoze |
 | **C** | Toggle crime overlay |
 | **V** | Toggle land value overlay |
@@ -83,6 +84,7 @@ pytest
 | Power Line | $5 | — |
 | Police Station | $500 | $100/mo |
 | Fire Station | $500 | $150/mo |
+| Trees | $25 | — |
 | Bulldoze | $1 | — |
 
 The game runs on a calendar (one month per real-time minute at 1x speed). Taxes are collected and service upkeep is paid at the start of each month, based on zone population, land value, and the current tax rate.
@@ -96,7 +98,7 @@ Key feedback loops, in the spirit of the classics:
 
 ## Disasters
 
-Press **D** and pick your poison: **Fire**, **Tornado**, **Earthquake**, or **Monster**. Tornadoes and monsters rampage across the map for a while, earthquakes damage buildings citywide and crack roads, and monsters set things on fire as they go.
+Press **D** and pick your poison: **Fire**, **Tornado**, **Earthquake**, **Monster**, or **Flood**. Tornadoes and monsters rampage across the map for a while, earthquakes damage buildings citywide and crack roads, monsters set things on fire as they go, and floods swallow the shoreline before receding.
 
 ## Fire Safety
 

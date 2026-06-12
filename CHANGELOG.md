@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.8.0] - 2026-06-11
+
+### Added
+- **Terrain generation**: new cities start with a winding river, lakes, and forests (`engine/mapgen.py`)
+- **Water**: unbuildable and fireproof, raises nearby land value; power lines can cross it
+- **Trees**: plantable with the new Trees tool (9, $25), raise land value, highly flammable — forest fires are now a thing; bulldoze them to clear land
+- **Flood disaster**: water spills over its banks, swallowing shoreline buildings, then recedes leaving mud
+
+### Changed
+- Tornadoes and monsters flatten forests as they pass
+
 ## [v0.7.0] - 2026-06-11
 
 ### Added

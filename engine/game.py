@@ -10,6 +10,7 @@ from engine.economy import EconomySystem
 from engine.fire import FireSystem
 from engine.grid import Grid
 from engine.land_value import LandValueSystem
+from engine import mapgen
 from engine.notifications import NotificationSystem
 from engine.renderer import Renderer
 from engine.systems import DemandSystem, GrowthSystem, PowerSystem
@@ -21,7 +22,7 @@ SPEED_FRAMES = [60, 30, 20]
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, generate_terrain=True, terrain_seed=None):
         pygame.init()
         self.screen_width = 1200
         self.screen_height = 800
@@ -32,6 +33,8 @@ class Game:
         self.running = True
 
         self.grid = Grid(100, 100)  # 100x100 map
+        if generate_terrain:
+            mapgen.generate(self.grid, terrain_seed)
         self.renderer = Renderer(self.screen, self.grid)
 
         self.power_system = PowerSystem()
@@ -168,8 +171,8 @@ class Game:
                 self.save_game()
             elif event.key == pygame.K_l:
                 self.load_game()
-        # Disaster selection while the disasters panel is open (1-4)
-        elif self.show_disasters and pygame.K_1 <= event.key <= pygame.K_4:
+        # Disaster selection while the disasters panel is open
+        elif self.show_disasters and pygame.K_1 <= event.key < pygame.K_1 + len(DISASTERS):
             name = DISASTERS[event.key - pygame.K_1]
             self.disaster_system.trigger(name, self.grid, self.fire_system)
             self.show_disasters = False
@@ -230,6 +233,10 @@ class Game:
         """Apply the current tool at world coordinates. Charges only on real changes."""
         tile = self.grid.get_tile(wx, wy)
         if tile is None:
+            return
+
+        # Water is unbuildable, but power lines may cross it
+        if tile.type == 'water' and self.current_tool != 'power_line':
             return
 
         if self.current_tool == 'power_line':
