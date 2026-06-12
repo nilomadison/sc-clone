@@ -71,50 +71,75 @@ class PowerSystem:
 
 
 class GrowthSystem:
-    """Zone population growth, gated by power, road access, and RCI demand."""
+    """Zone population growth, gated by power, road access, and RCI demand.
 
-    GROWTH_CHANCE = 0.04   # Per tick at maximum demand (1.0)
-    DECLINE_CHANCE = 0.03  # Per tick at maximum oversupply (-1.0)
+    3x3 zones (engine/zones.py) grow as a unit and promote through density
+    tiers that raise each member tile's population cap. RCI tiles without a
+    zone (pre-0.9 saves, tests) grow as legacy single-tile plots capped at 10.
+    """
+
+    GROWTH_CHANCE = 0.04   # Per tile per tick at maximum demand (1.0)
+    DECLINE_CHANCE = 0.03  # Per tile per tick at maximum oversupply (-1.0)
     DEFAULT_DEMAND = 0.5   # Used when no demand system is provided
 
     def update(self, grid, demand=None):
-        # Growth requirements:
-        # 1. Powered, functional building
-        # 2. Road access (adjacent to road)
-        # 3. Random chance scaled by that zone type's demand
+        # 3x3 zones grow as a unit
+        for zone in list(grid.zones):
+            members = zone.live_members(grid)
+            if not members:
+                grid.zones.remove(zone)
+                continue
+            self._update_zone(grid, zone, members, demand)
+
+        # Legacy single-tile plots
         for x, y in grid.positions(*ZONE_TYPES):
             tile = grid.tiles[x][y]
-            # Burned rubble and crumbling buildings don't grow
-            if not is_functional(tile):
-                continue
-            if tile.is_powered:
-                # Check for road adjacency
-                has_road = False
-                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < grid.width and 0 <= ny < grid.height:
-                        if grid.tiles[nx][ny].type == 'road':
-                            has_road = True
-                            break
+            if tile.structure is None:
+                self._grow_tile(grid, tile, cap=10,
+                                has_road=tile.has_access and self._has_road(grid, x, y),
+                                demand=demand)
 
-                if has_road:
-                    demand_value = self._demand_for(tile.type, demand)
-                    if demand_value > 0:
-                        # Grow population, faster under higher demand
-                        if random.random() < self.GROWTH_CHANCE * demand_value:
-                            tile.population = min(tile.population + 1, 10)
-                    elif demand_value < 0:
-                        # Oversupply: people and businesses move out
-                        if random.random() < self.DECLINE_CHANCE * -demand_value:
-                            tile.population = max(tile.population - 1, 0)
-                else:
-                    # Decay if no road
-                    if random.random() < 0.05:
+    def _update_zone(self, grid, zone, members, demand):
+        # A zone needs a road touching it AND a reachable trip destination
+        # (TrafficSystem sets has_access)
+        has_road = (zone.has_access and
+                    any(self._has_road(grid, t.x, t.y) for t in members))
+        for tile in members:
+            self._grow_tile(grid, tile, cap=zone.tile_cap(),
+                            has_road=has_road, demand=demand)
+        zone.update_density(grid)
+
+    def _grow_tile(self, grid, tile, cap, has_road, demand):
+        # Burned rubble and crumbling buildings don't grow
+        if not is_functional(tile):
+            return
+        if tile.is_powered:
+            if has_road:
+                demand_value = self._demand_for(tile.type, demand)
+                if demand_value > 0:
+                    # Grow population, faster under higher demand
+                    if random.random() < self.GROWTH_CHANCE * demand_value:
+                        tile.population = min(tile.population + 1, cap)
+                elif demand_value < 0:
+                    # Oversupply: people and businesses move out
+                    if random.random() < self.DECLINE_CHANCE * -demand_value:
                         tile.population = max(tile.population - 1, 0)
             else:
-                # Decay if no power
-                if random.random() < 0.1:
+                # Decay if no road
+                if random.random() < 0.05:
                     tile.population = max(tile.population - 1, 0)
+        else:
+            # Decay if no power
+            if random.random() < 0.1:
+                tile.population = max(tile.population - 1, 0)
+
+    def _has_road(self, grid, x, y):
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < grid.width and 0 <= ny < grid.height:
+                if grid.tiles[nx][ny].type == 'road':
+                    return True
+        return False
 
     def _demand_for(self, zone_type, demand):
         if demand is None:
@@ -145,45 +170,22 @@ class DemandSystem:
         r_pop = sum(grid.tiles[x][y].population for x, y in grid.positions('residential'))
         c_pop = sum(grid.tiles[x][y].population for x, y in grid.positions('commercial'))
         i_pop = sum(grid.tiles[x][y].population for x, y in grid.positions('industrial'))
-        r_zones = grid.count('residential')
-        c_zones = grid.count('commercial')
-        i_zones = grid.count('industrial')
         
-        # Calculate demand based on balance
-        # Residential demand: driven by available jobs (C + I)
-        total_jobs = c_pop + i_pop
-        if r_pop == 0:
-            self.residential = 0.5  # Need some residents to start
-        else:
-            # More jobs than workers = need more residential
-            job_ratio = total_jobs / r_pop if r_pop > 0 else 1.0
-            self.residential = max(-1.0, min(1.0, (job_ratio - 1.0)))
-        
-        # Commercial demand: driven by residential population
-        if r_pop == 0:
-            self.commercial = -0.5  # No customers
-        else:
-            # Need commercial to serve residents
-            service_ratio = c_pop / r_pop if r_pop > 0 else 0
-            # Ideal ratio is about 0.3 commercial per resident
-            self.commercial = max(-1.0, min(1.0, (0.3 - service_ratio) * 3))
-        
-        # Industrial demand: driven by commercial (goods needed)
-        if c_pop == 0:
-            self.industrial = 0.3  # Base industrial need
-        else:
-            # Industrial supplies commercial
-            supply_ratio = i_pop / c_pop if c_pop > 0 else 0
-            # Ideal ratio is about 0.5 industrial per commercial
-            self.industrial = max(-1.0, min(1.0, (0.5 - supply_ratio) * 2))
-        
-        # Boost demand for empty zone types to encourage building
-        if r_zones == 0:
-            self.residential = 1.0
-        if c_zones == 0 and r_pop > 5:
-            self.commercial = 0.8
-        if i_zones == 0 and c_pop > 3:
-            self.industrial = 0.8
+        # Target-based demand: each type chases a target derived from the
+        # others, chosen so a balanced city keeps growing (jobs support more
+        # residents than they consume — the classic boom loop):
+        #   residents chase jobs (with a base attraction so towns bootstrap)
+        #   commerce and industry chase the resident population
+        r_target = 2.0 * (c_pop + i_pop) + 10
+        c_target = 0.3 * r_pop
+        i_target = 0.4 * r_pop
+
+        def toward(target, pop):
+            return max(-1.0, min(1.0, (target - pop) / max(target, pop, 1)))
+
+        self.residential = toward(r_target, r_pop)
+        self.commercial = toward(c_target, c_pop)
+        self.industrial = toward(i_target, i_pop)
 
         # Taxes shift all demand: high rates drive people away, low rates
         # attract them (so 20% tax is no longer free money)

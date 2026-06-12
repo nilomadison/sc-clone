@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.9.0] - 2026-06-11
+
+### Added
+- **3×3 zones with density tiers**: RCI zones now place as classic 3×3 plots ($100 per zone, not per tile). Zones grow as a unit through four density tiers that raise their population caps; bulldozing any tile clears the whole plot. Zones render as single buildings (outline only)
+- **Traffic simulation**: zones periodically route trips along roads to their counterpart (residents→jobs, shops→customers, industry→shops). A zone with no reachable destination within 30 road tiles stops growing. Trips lay traffic on roads, which decays over time
+- **Traffic overlay (T)**: green (free-flowing) to red (jammed) on roads
+- Busy roads drag down nearby land value instead of raising it
+
+### Changed
+- **Demand model rebuilt**: the old formulas had no growing equilibrium (jobs targets covered only ~45% of residents, so residential demand went permanently negative once demand actually gated growth). Each zone type now chases a target derived from the others, giving balanced cities the classic boom loop
+- Save format 0.9.0 stores zones; older saves load fine, with their RCI tiles behaving as legacy single-tile plots
+
 ## [v0.8.0] - 2026-06-11
 
 ### Added

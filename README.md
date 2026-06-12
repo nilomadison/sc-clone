@@ -5,7 +5,8 @@ A simple city-building simulation game built with Python and Pygame-ce.
 ## Features
 
 - **Terrain**: Maps generate with a river, lakes, and forests. Water blocks fire and raises land value; trees are flammable but desirable.
-- **Zoning**: Residential, Commercial, and Industrial zones.
+- **Zoning**: Residential, Commercial, and Industrial zones place as classic 3×3 plots that develop through four density tiers.
+- **Traffic**: Zones run trips along your roads to reach jobs, customers, and markets — no route, no growth. Busy roads hurt land value.
 - **Infrastructure**: Roads and Power Lines (power lines can cross water).
 - **Utilities**: Power Plants with power distribution logic.
 - **City Services**: Police and Fire Stations protect your city.
@@ -62,6 +63,7 @@ pytest
 | **V** | Toggle land value overlay |
 | **P** | Toggle power overlay |
 | **F** | Toggle fire risk overlay |
+| **T** | Toggle traffic overlay |
 | **Space** | Pause/resume simulation |
 | **- / +** | Simulation speed (1x/2x/3x) |
 | **B** | Open/close budget panel |
@@ -76,9 +78,9 @@ pytest
 
 | Item | Cost | Upkeep |
 |------|------|--------|
-| Residential Zone | $100 | — |
-| Commercial Zone | $100 | — |
-| Industrial Zone | $100 | — |
+| Residential Zone (3×3) | $100 | — |
+| Commercial Zone (3×3) | $100 | — |
+| Industrial Zone (3×3) | $100 | — |
 | Road | $10 | — |
 | Power Plant | $3,000 | $200/mo |
 | Power Line | $5 | — |
@@ -90,8 +92,9 @@ pytest
 The game runs on a calendar (one month per real-time minute at 1x speed). Taxes are collected and service upkeep is paid at the start of each month, based on zone population, land value, and the current tax rate.
 
 Key feedback loops, in the spirit of the classics:
-- **RCI demand drives growth** — zones only develop while their demand bar is positive, and empty out under oversupply.
+- **RCI demand drives growth** — zones only develop while their demand bar is positive, and empty out under oversupply. Residents chase jobs; commerce and industry chase residents.
 - **Taxes shift demand** — 7% is neutral; raise rates for short-term cash at the cost of growth.
+- **Zones need road access** — each zone must reach its counterpart (jobs/customers/markets) within ~30 road tiles, or it stops developing. Trips create traffic; congestion lowers land value.
 - **Land value scales income** — desirable neighborhoods (near police, commerce, away from industry and crime) pay more tax.
 - **Power plants have capacity** — each supports 200 zone tiles; overload causes brownouts in the farthest zones (watch the power meter).
 - **Damaged buildings stop working** — below 25% health, stations lose coverage, plants stop producing, and zones stop paying taxes until they recover or collapse.

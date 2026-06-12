@@ -85,7 +85,7 @@ class UI:
         screen.blit(tool_text, (10, 10))
 
         # Instructions
-        instructions = ("1-8,0: Tools | C/V/P/F: Overlays | B: Budget | D: Disasters | "
+        instructions = ("1-9,0: Tools | C/V/P/F/T: Overlays | B: Budget | D: Disasters | "
                         "Space: Pause | -/+: Speed | Ctrl+S/L: Save/Load")
         instr_surf = self.font.render(instructions, True, (180, 180, 180))
         screen.blit(instr_surf, (10, 40))

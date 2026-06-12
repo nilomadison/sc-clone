@@ -19,6 +19,9 @@ class Tile:
         self.fire_intensity = 0.0  # 0.0-1.0 scale
         self.is_burned = False  # True if building was destroyed by fire
         self.building_health = 1.0  # 0.0-1.0 scale, decays over time
+        # v0.9.0: Traffic
+        self.traffic = 0.0  # Trip traffic on road tiles, decays per tick
+        self.has_access = True  # Legacy plots: counterpart reachable by road
 
     @property
     def needs_power(self):
@@ -37,6 +40,8 @@ class Grid:
         # buildings without scanning the whole map. Kept in sync by
         # set_tile_type — never assign tile.type directly.
         self.index = {}
+        # 3x3 zones (engine/zones.py); member tiles point back via .structure
+        self.zones = []
 
     def get_tile(self, x, y):
         if 0 <= x < self.width and 0 <= y < self.height:
@@ -61,6 +66,11 @@ class Grid:
                     old_set.discard((x, y))
                 if type_name != 'grass':
                     self.index.setdefault(type_name, set()).add((x, y))
+                # Changing type detaches the tile from its zone and resets
+                # traffic state
+                tile.structure = None
+                tile.traffic = 0.0
+                tile.has_access = True
             tile.type = type_name
             # Reset properties when type changes
             tile.is_powered = False

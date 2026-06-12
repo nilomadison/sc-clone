@@ -13,8 +13,10 @@ from engine.decay import DecaySystem
 from engine.fire import FireSystem
 from engine.grid import Grid
 from engine.land_value import LandValueSystem
+from engine.traffic import TrafficSystem
+from engine.zones import Zone
 
-SAVE_VERSION = '0.6.0'
+SAVE_VERSION = '0.9.0'
 DEFAULT_PATH = 'saves/city.json'
 
 
@@ -48,6 +50,7 @@ def save_game(game, filepath=DEFAULT_PATH):
             'height': game.grid.height,
             'tiles': tiles_data,
         },
+        'zones': [zone.to_dict() for zone in game.grid.zones],
         'economy': game.economy.to_dict(),
         'camera': {
             'x': game.renderer.camera_x,
@@ -88,6 +91,16 @@ def load_game(game, filepath=DEFAULT_PATH):
                 tile.is_burned = tile_data.get('is_burned', False)
                 tile.building_health = tile_data.get('building_health', 1.0)
 
+        # Restore zones and reattach member tiles (pre-0.9 saves have no
+        # zones; their RCI tiles grow as legacy single-tile plots)
+        for zone_data in save_data.get('zones', []):
+            zone = Zone.from_dict(zone_data)
+            for x, y in zone.members:
+                tile = game.grid.get_tile(x, y)
+                if tile is not None and tile.type == zone.type:
+                    tile.structure = zone
+            game.grid.zones.append(zone)
+
         # Restore economy, camera, and clock (older saves lack the clock)
         game.economy.from_dict(save_data.get('economy', {}))
         camera_data = save_data.get('camera', {})
@@ -102,6 +115,7 @@ def load_game(game, filepath=DEFAULT_PATH):
         game.fire_system = FireSystem()
         game.fire_system.rebuild(game.grid)
         game.decay_system = DecaySystem()
+        game.traffic_system = TrafficSystem()
 
         # Run systems to refresh derived state
         game.power_system.update(game.grid)

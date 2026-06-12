@@ -13,6 +13,7 @@ from engine.fire import FireSystem
 from engine.grid import Grid
 from engine.land_value import LandValueSystem
 from engine.systems import DemandSystem, GrowthSystem, PowerSystem
+from engine.traffic import TrafficSystem
 
 
 def build_city(grid):
@@ -41,12 +42,13 @@ def main():
         ('power', PowerSystem(), lambda s: s.update(grid)),
         ('growth', GrowthSystem(), lambda s: s.update(grid)),
         ('demand', DemandSystem(), lambda s: s.update(grid)),
+        ('traffic', TrafficSystem(), lambda s: s.update(grid)),
         ('crime', CrimeSystem(), lambda s: s.update(grid)),
         ('land_value', LandValueSystem(), lambda s: s.update(grid)),
         ('fire', FireSystem(), lambda s: s.update(grid, economy)),
         ('decay', DecaySystem(), lambda s: s.update(grid, economy)),
-        ('taxes', economy, lambda s: s.collect_taxes(grid)),
-        ('upkeep', economy, lambda s: s.deduct_upkeep(grid)),
+        ('taxes', economy, lambda s: s.collect_monthly_taxes(grid, 60)),
+        ('upkeep', economy, lambda s: s.deduct_monthly_upkeep(grid)),
     ]
 
     # Warmup: the incremental fields do a full build on their first tick

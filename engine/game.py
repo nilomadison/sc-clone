@@ -15,7 +15,9 @@ from engine.notifications import NotificationSystem
 from engine.renderer import Renderer
 from engine.systems import DemandSystem, GrowthSystem, PowerSystem
 from engine.tiles import TILE_TYPES, TOOL_ORDER, ZONE_TYPES
+from engine.traffic import TrafficSystem
 from engine.ui import TOOLBAR_HEIGHT, UI
+from engine.zones import ZONE_SIZE, Zone, stamps_for_rect
 
 # Frames per simulation tick at 1x/2x/3x speed
 SPEED_FRAMES = [60, 30, 20]
@@ -45,6 +47,7 @@ class Game:
         self.fire_system = FireSystem()
         self.decay_system = DecaySystem()
         self.disaster_system = DisasterSystem()
+        self.traffic_system = TrafficSystem()
         self.economy = EconomySystem()
 
         # Simulation clock: pause, speed, and the in-game calendar
@@ -188,6 +191,8 @@ class Game:
             self.current_overlay = 'power' if self.current_overlay != 'power' else None
         elif event.key == pygame.K_f:
             self.current_overlay = 'fire' if self.current_overlay != 'fire' else None
+        elif event.key == pygame.K_t:
+            self.current_overlay = 'traffic' if self.current_overlay != 'traffic' else None
         elif event.key == pygame.K_ESCAPE:
             self.current_overlay = None
             self.show_budget = False
@@ -242,12 +247,54 @@ class Game:
         if self.current_tool == 'power_line':
             if self.economy.deduct_cost(self.current_tool):
                 self.grid.toggle_power_line(wx, wy)
-        else:
-            # No-op if the tile is already this type (also makes bulldozing grass free)
-            if tile.type == self.current_tool:
-                return
-            if self.economy.deduct_cost(self.current_tool):
-                self.grid.set_tile_type(wx, wy, self.current_tool)
+            return
+
+        # Zone members: bulldozing clears the whole zone; anything else
+        # requires bulldozing first
+        if tile.structure is not None:
+            if self.current_tool == 'grass' and self.economy.deduct_cost('grass'):
+                self._bulldoze_zone(tile.structure)
+            return
+
+        if self.current_tool in ZONE_TYPES:
+            # RCI tools stamp a 3x3 zone centered on the cursor
+            self._place_zone_stamp(wx - ZONE_SIZE // 2, wy - ZONE_SIZE // 2,
+                                   self.current_tool)
+            return
+
+        # No-op if the tile is already this type (also makes bulldozing grass free)
+        if tile.type == self.current_tool:
+            return
+        if self.economy.deduct_cost(self.current_tool):
+            self.grid.set_tile_type(wx, wy, self.current_tool)
+
+    def _place_zone_stamp(self, x, y, zone_type):
+        """Stamp a 3x3 zone with top-left at (x, y) if the area is clear."""
+        tiles = []
+        for dx in range(ZONE_SIZE):
+            for dy in range(ZONE_SIZE):
+                tile = self.grid.get_tile(x + dx, y + dy)
+                if tile is None or tile.type != 'grass':
+                    return  # Blocked: zones need a clear 3x3 plot
+                tiles.append(tile)
+
+        # One zone costs one placement fee, classic style
+        if not self.economy.deduct_cost(zone_type):
+            return
+
+        zone = Zone(zone_type, [(t.x, t.y) for t in tiles])
+        for tile in tiles:
+            self.grid.set_tile_type(tile.x, tile.y, zone_type)
+            tile.structure = zone
+        self.grid.zones.append(zone)
+
+    def _bulldoze_zone(self, zone):
+        """Clear every tile of a zone back to grass."""
+        for x, y in zone.members:
+            if self.grid.tiles[x][y].structure is zone:
+                self.grid.set_tile_type(x, y, 'grass')
+        if zone in self.grid.zones:
+            self.grid.zones.remove(zone)
 
     def place_drag_zone(self):
         """Place tiles based on drag from start to end."""
@@ -265,10 +312,9 @@ class Game:
             # Place roads along the perimeter only
             self._place_perimeter_with_cost(min_x, min_y, max_x, max_y, 'road')
         else:
-            # Fill the entire rectangular area for RCI zones (empty land only)
-            for x in range(min_x, max_x + 1):
-                for y in range(min_y, max_y + 1):
-                    self._place_on_grass(x, y, self.current_tool)
+            # Stamp 3x3 zones across the dragged rectangle
+            for sx, sy in stamps_for_rect(min_x, min_y, max_x, max_y):
+                self._place_zone_stamp(sx, sy, self.current_tool)
 
     def _place_on_grass(self, x, y, tile_type):
         """Place a tile only on empty grass, charging on success."""
@@ -325,6 +371,7 @@ class Game:
             self.power_system.update(self.grid)
             self.growth_system.update(self.grid, self.demand_system)
             self.demand_system.update(self.grid, self.economy.tax_rate)
+            self.traffic_system.update(self.grid)
             self.crime_system.update(self.grid)
             self.land_value_system.update(self.grid)
             self.disaster_system.update(self.grid, self.fire_system)

@@ -152,9 +152,10 @@ class TestPlacement:
         start = game.economy.money
         game.place_drag_zone()
 
+        # The 3x3 stamp overlaps the power plant, so nothing is placed
         assert game.grid.get_tile(5, 5).type == 'power_plant'
-        # Paid for the 8 grass tiles only, not the power plant tile
-        assert game.economy.money == start - 8 * 100
+        assert game.grid.get_tile(4, 4).type == 'grass'
+        assert game.economy.money == start
 
     def test_road_perimeter_skips_existing_roads(self, game):
         game.grid.set_tile_type(4, 4, 'road')

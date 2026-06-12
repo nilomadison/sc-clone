@@ -31,8 +31,16 @@ class LandValueSystem:
 
         sources = {}
         for type_name, modifier in VALUE_MODIFIERS.items():
-            for pos in grid.positions(type_name):
-                sources[pos] = modifier
+            if type_name == 'road':
+                # Busy roads radiate falling value instead of rising value.
+                # Traffic is bucketed so the incremental field only
+                # re-scatters when a road crosses a bucket boundary.
+                for x, y in grid.positions('road'):
+                    bucket = min(5, int(grid.tiles[x][y].traffic / 10))
+                    sources[(x, y)] = modifier - 3 * bucket
+            else:
+                for pos in grid.positions(type_name):
+                    sources[pos] = modifier
         self._modifier_field.refresh(sources)
 
         # Field is flat: x * height + y

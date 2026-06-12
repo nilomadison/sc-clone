@@ -2,6 +2,7 @@ import pygame
 import random
 
 from engine.tiles import TILE_TYPES, field_map
+from engine.zones import ZONE_SIZE, stamps_for_rect
 
 # Map colors come from the tile type registry
 TYPE_COLORS = field_map('color')
@@ -78,8 +79,20 @@ class Renderer:
                     pygame.draw.rect(self.screen, COLOR_POWER_LINE, (sx + TILE_SIZE//2 - 2, sy, 4, TILE_SIZE))
                     pygame.draw.rect(self.screen, COLOR_POWER_LINE, (sx, sy + TILE_SIZE//2 - 2, TILE_SIZE, 4))
                 
-                # Draw grid lines
-                pygame.draw.rect(self.screen, COLOR_GRID_LINES, rect, 1)
+                # Grid lines: zone plots draw their outline only, so a 3x3
+                # zone reads as a single building
+                if tile.structure is not None:
+                    zone = tile.structure
+                    edges = (((-1, 0), (sx, sy), (sx, sy + TILE_SIZE)),
+                             ((1, 0), (sx + TILE_SIZE, sy), (sx + TILE_SIZE, sy + TILE_SIZE)),
+                             ((0, -1), (sx, sy), (sx + TILE_SIZE, sy)),
+                             ((0, 1), (sx, sy + TILE_SIZE), (sx + TILE_SIZE, sy + TILE_SIZE)))
+                    for (dx, dy), start, end in edges:
+                        neighbor = self.grid.get_tile(x + dx, y + dy)
+                        if neighbor is None or neighbor.structure is not zone:
+                            pygame.draw.line(self.screen, COLOR_GRID_LINES, start, end)
+                else:
+                    pygame.draw.rect(self.screen, COLOR_GRID_LINES, rect, 1)
 
                 # Draw missing power indicator
                 if tile.needs_power and not tile.is_powered:
@@ -129,6 +142,12 @@ class Renderer:
                 overlay_surface.fill((255, 255, 0, 100))  # Yellow for powered
             elif tile.needs_power:
                 overlay_surface.fill((255, 0, 0, 150))  # Red for needs power but unpowered
+        elif overlay_mode == 'traffic':
+            if tile.type == 'road':
+                # Green (free-flowing) to red (jammed)
+                intensity = min(1.0, tile.traffic / 50.0)
+                overlay_surface.fill(
+                    (int(255 * intensity), int(255 * (1 - intensity)), 0, 150))
         elif overlay_mode == 'fire':  # v0.4.0: Fire overlay
             if tile.is_on_fire:
                 overlay_surface.fill((255, 100, 0, 200))  # Bright orange for active fire
@@ -210,25 +229,19 @@ class Renderer:
         pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, (sx, sy, TILE_SIZE, TILE_SIZE), 2)
 
     def draw_rci_preview(self, world_rect, zone_type):
-        """Draw a preview of the RCI zone being placed."""
+        """Preview the 3x3 zone stamps that a drag will place."""
         min_x, min_y, max_x, max_y = world_rect
-        
-        # Get the zone color
         zone_color = TYPE_COLORS.get(zone_type, COLOR_HIGHLIGHT)
-        
-        preview_width = (max_x - min_x + 1) * TILE_SIZE
-        preview_height = (max_y - min_y + 1) * TILE_SIZE
-        
-        for x in range(min_x, max_x + 1):
-            for y in range(min_y, max_y + 1):
-                sx, sy = self.world_to_screen(x, y)
-                preview_surface = pygame.Surface((TILE_SIZE, TILE_SIZE), pygame.SRCALPHA)
-                preview_surface.fill((*zone_color, 128))
-                self.screen.blit(preview_surface, (sx, sy))
-        
-        start_sx, start_sy = self.world_to_screen(min_x, min_y)
-        pygame.draw.rect(self.screen, COLOR_HIGHLIGHT, 
-                        (start_sx, start_sy, preview_width, preview_height), 3)
+        stamp_px = ZONE_SIZE * TILE_SIZE
+
+        stamp_surface = pygame.Surface((stamp_px, stamp_px), pygame.SRCALPHA)
+        stamp_surface.fill((*zone_color, 128))
+
+        for sx, sy in stamps_for_rect(min_x, min_y, max_x, max_y):
+            px, py = self.world_to_screen(sx, sy)
+            self.screen.blit(stamp_surface, (px, py))
+            pygame.draw.rect(self.screen, COLOR_HIGHLIGHT,
+                             (px, py, stamp_px, stamp_px), 2)
 
     def draw_road_preview(self, world_rect):
         """Draw a preview of roads being placed along the perimeter."""

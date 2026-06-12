@@ -22,9 +22,14 @@ A SimCity-style game built on pygame-ce. `main.py` instantiates `engine.game.Gam
 
 `Game.update()` (engine/game.py) runs the simulation once every `SPEED_FRAMES[speed_index]` frames (60/30/20 for 1x/2x/3x; Space pauses). Each system is a class with an `update(grid)` method, called in a fixed order that matters because later systems read state written by earlier ones:
 
-power → growth → demand → crime → land_value → disasters → fire → decay
+power → growth → demand → traffic → crime → land_value → disasters → fire → decay
 
-Growth reads the *previous* tick's demand (`GrowthSystem.update(grid, demand_system)`); demand reads the tax rate (7% neutral — high taxes suppress demand). Power plants have finite capacity (registry `power_capacity`); the BFS browns out the farthest zones when over budget. Tax income scales with land value (0.5x–1.5x). Buildings below `decay.MIN_HEALTH_FUNCTIONAL` (25%) are gated everywhere via `decay.is_functional(tile)` — no coverage, power, growth, or taxes.
+Growth reads the *previous* tick's demand (`GrowthSystem.update(grid, demand_system)`); demand reads the tax rate (7% neutral — high taxes suppress demand). The demand model is target-based: residents chase jobs with a multiplier > 1 so balanced cities boom — don't "fix" it back to ratio-based formulas, those have no growing equilibrium. Power plants have finite capacity (registry `power_capacity`); the BFS browns out the farthest zones when over budget. Tax income scales with land value (0.5x–1.5x). Buildings below `decay.MIN_HEALTH_FUNCTIONAL` (25%) are gated everywhere via `decay.is_functional(tile)` — no coverage, power, growth, or taxes.
+
+### Zones (3×3) and traffic
+
+- RCI placement stamps 3×3 `Zone` objects (engine/zones.py) — one fee per zone, members point back via `Tile.structure`, bulldozing any member clears the plot (`Game._bulldoze_zone`). Zones promote through density tiers (`TIER_TILE_CAP`) that raise per-tile population caps. Population still lives on tiles, so crime/demand/tax systems read tiles unchanged. RCI tiles *without* a zone (pre-0.9 saves, tests) grow as legacy single-tile plots capped at 10.
+- `engine/traffic.py` staggers bounded road-BFS trips (R→C/I, C→R, I→C); failure clears `zone.has_access`/`tile.has_access`, which gates growth. Trips lay decaying `tile.traffic` on roads; LandValueSystem turns busy roads into negative value sources (traffic is bucketed there to keep the incremental field from churning).
 
 `engine/clock.py` (`GameClock`) converts ticks to a calendar (60 ticks = 1 month). Taxes (`economy.collect_monthly_taxes`) and upkeep (`deduct_monthly_upkeep`) settle on month boundaries, not per tick.
 
