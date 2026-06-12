@@ -42,6 +42,13 @@ A simple city-building simulation game built with Python and Pygame-ce.
 python main.py
 ```
 
+## Running the Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Controls
 
 | Key | Action |
@@ -79,9 +86,11 @@ Tax income is collected automatically based on zone population and current tax r
 
 ## Fire Safety
 
-Fires can randomly start in industrial zones and power plants. They spread to adjacent tiles and damage buildings over time. Place **Fire Stations** to:
-- Reduce fire spread speed by 50% in their coverage area
-- Auto-extinguish fires within 8 tiles
+Fires occasionally start in industrial zones and power plants (crime raises the arson risk). A fire spreads to adjacent flammable buildings, but grass and roads act as firebreaks. Left alone, a fire burns out on its own after a while — badly damaging the building and possibly a few neighbors.
+
+Place **Fire Stations** ($500, $150/mo) to:
+- Extinguish fires within their 8-tile radius in seconds, with minimal damage
+- Cut fire spread chance in half inside their coverage
 
 Buildings on fire lose health. If a building's health reaches zero, it collapses into rubble and must be bulldozed before rebuilding.
 
@@ -89,6 +98,6 @@ Buildings on fire lose health. If a building's health reaches zero, it collapses
 
 In the budget panel, you can adjust funding levels for services:
 - **Police Funding**: Lower funding increases crime and building decay
-- **Fire Funding**: Lower funding reduces fire protection effectiveness
+- **Fire Funding**: Lower funding shrinks fire station coverage (down to half radius at 0%) and slows extinguishing
 
 Underfunded services cost less upkeep but provide reduced protection.

@@ -78,8 +78,8 @@ class EconomySystem:
             for y in range(grid.height):
                 tile = grid.tiles[x][y]
                 
-                # Only powered tiles generate tax income
-                if tile.is_powered and tile.population > 0:
+                # Only intact, powered tiles generate tax income
+                if tile.is_powered and tile.population > 0 and not tile.is_burned:
                     rate = BASE_TAX_RATES.get(tile.type, 0)
                     income += tile.population * rate * tax_multiplier
         

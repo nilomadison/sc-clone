@@ -35,8 +35,10 @@ class PowerSystem:
                     neighbor = grid.tiles[nx][ny]
                     
                     if (nx, ny) not in visited:
-                        # Power conductors: power_line (overlay), power_plant, and RCI zones
-                        if neighbor.has_power_line or neighbor.type in ['power_plant', 'residential', 'commercial', 'industrial']:
+                        # Power conductors: power_line (overlay), power_plant, and
+                        # intact RCI zones (burned rubble doesn't conduct)
+                        if neighbor.has_power_line or (not neighbor.is_burned and
+                                neighbor.type in ['power_plant', 'residential', 'commercial', 'industrial']):
                             neighbor.is_powered = True
                             visited.add((nx, ny))
                             queue.append((nx, ny))
@@ -56,6 +58,9 @@ class GrowthSystem:
             for y in range(grid.height):
                 tile = grid.tiles[x][y]
                 if tile.type in ['residential', 'commercial', 'industrial']:
+                    # Burned rubble is dead until bulldozed and rebuilt
+                    if tile.is_burned:
+                        continue
                     if tile.is_powered:
                         # Check for road adjacency
                         has_road = False

@@ -77,6 +77,7 @@ class Game:
         # Drag placement for zones and roads
         self.drag_start = None  # (world_x, world_y) when drag started
         self.drag_end = None    # Current drag end position
+        self.last_paint_pos = None  # Last tile painted during drag-paint
         
         # Toolbar buttons
         self.buttons = []
@@ -177,6 +178,7 @@ class Game:
                         self.drag_start = (wx, wy)
                         self.drag_end = (wx, wy)
                     else:
+                        self.last_paint_pos = None
                         self.use_current_tool()
                 elif event.button == 3:  # Right click - Pan start or cancel drag
                     if self.drag_start:
@@ -197,6 +199,8 @@ class Game:
                         self.place_drag_zone()
                     self.drag_start = None
                     self.drag_end = None
+                elif event.button == 1:
+                    self.last_paint_pos = None
                 elif event.button == 3:
                     self.is_panning = False
 
@@ -223,15 +227,25 @@ class Game:
         if my >= self.screen_height - TOOLBAR_HEIGHT:
             return
         wx, wy = self.renderer.screen_to_world(mx, my)
-        
-        # Check if we can afford this
-        if not self.economy.can_afford(self.current_tool):
-            return  # Can't afford, do nothing
-        
+        # Don't re-apply to the same tile while drag-painting
+        if (wx, wy) == self.last_paint_pos:
+            return
+        self.last_paint_pos = (wx, wy)
+        self.apply_tool(wx, wy)
+
+    def apply_tool(self, wx, wy):
+        """Apply the current tool at world coordinates. Charges only on real changes."""
+        tile = self.grid.get_tile(wx, wy)
+        if tile is None:
+            return
+
         if self.current_tool == 'power_line':
             if self.economy.deduct_cost(self.current_tool):
                 self.grid.toggle_power_line(wx, wy)
         else:
+            # No-op if the tile is already this type (also makes bulldozing grass free)
+            if tile.type == self.current_tool:
+                return
             if self.economy.deduct_cost(self.current_tool):
                 self.grid.set_tile_type(wx, wy, self.current_tool)
 
@@ -251,28 +265,19 @@ class Game:
             # Place roads along the perimeter only
             self._place_perimeter_with_cost(min_x, min_y, max_x, max_y, 'road')
         else:
-            # Fill the entire rectangular area for RCI zones
+            # Fill the entire rectangular area for RCI zones (empty land only)
             for x in range(min_x, max_x + 1):
                 for y in range(min_y, max_y + 1):
-                    if self.economy.can_afford(self.current_tool):
-                        if self.economy.deduct_cost(self.current_tool):
-                            self.grid.set_tile_type(x, y, self.current_tool)
+                    self._place_on_grass(x, y, self.current_tool)
 
-    def _place_perimeter(self, min_x, min_y, max_x, max_y, tile_type):
-        """Place tiles along the perimeter of a rectangle (no cost check)."""
-        # Top edge
-        for x in range(min_x, max_x + 1):
-            self.grid.set_tile_type(x, min_y, tile_type)
-        # Bottom edge
-        for x in range(min_x, max_x + 1):
-            self.grid.set_tile_type(x, max_y, tile_type)
-        # Left edge (excluding corners already placed)
-        for y in range(min_y + 1, max_y):
-            self.grid.set_tile_type(min_x, y, tile_type)
-        # Right edge (excluding corners already placed)
-        for y in range(min_y + 1, max_y):
-            self.grid.set_tile_type(max_x, y, tile_type)
-    
+    def _place_on_grass(self, x, y, tile_type):
+        """Place a tile only on empty grass, charging on success."""
+        tile = self.grid.get_tile(x, y)
+        if tile is None or tile.type != 'grass':
+            return
+        if self.economy.deduct_cost(tile_type):
+            self.grid.set_tile_type(x, y, tile_type)
+
     def _place_perimeter_with_cost(self, min_x, min_y, max_x, max_y, tile_type):
         """Place tiles along the perimeter with cost deduction."""
         positions = []
@@ -292,9 +297,7 @@ class Game:
                 positions.append((max_x, y))
         
         for x, y in positions:
-            if self.economy.can_afford(tile_type):
-                if self.economy.deduct_cost(tile_type):
-                    self.grid.set_tile_type(x, y, tile_type)
+            self._place_on_grass(x, y, tile_type)
 
     def get_drag_rect(self):
         """Get the current drag rectangle in world coordinates, or None if not dragging."""
@@ -319,10 +322,17 @@ class Game:
             self.demand_system.update(self.grid)
             self.crime_system.update(self.grid)
             self.land_value_system.update(self.grid)
-            self.fire_system.update(self.grid)  # v0.4.0
+            self.fire_system.update(self.grid, self.economy)
             self.decay_system.update(self.grid, self.economy)  # v0.4.0
             self.last_income = self.economy.collect_taxes(self.grid)
             self.economy.deduct_upkeep(self.grid)
+
+            # Forward system events (building collapses) to notifications
+            for system in (self.fire_system, self.decay_system):
+                for event in system.events:
+                    if event[0] == 'collapse':
+                        self.notifications.notify_building_collapse(event[1], event[2])
+                system.events.clear()
         
         # Notification timer countdown (legacy system for save/load)
         if self.notification_timer > 0:
@@ -463,10 +473,16 @@ class Game:
             self.economy.tax_rate = max(1, min(20, self.economy.tax_rate + direction))
         elif self.budget_selection == 1:  # Police funding
             current = self.economy.service_funding['police']
-            self.economy.service_funding['police'] = max(0.0, min(1.0, current + direction * 0.1))
+            new_value = max(0.0, min(1.0, current + direction * 0.1))
+            self.economy.service_funding['police'] = new_value
+            if new_value < 0.5:
+                self.notifications.notify_service_underfunded('Police Department')
         elif self.budget_selection == 2:  # Fire funding
             current = self.economy.service_funding['fire']
-            self.economy.service_funding['fire'] = max(0.0, min(1.0, current + direction * 0.1))
+            new_value = max(0.0, min(1.0, current + direction * 0.1))
+            self.economy.service_funding['fire'] = new_value
+            if new_value < 0.5:
+                self.notifications.notify_service_underfunded('Fire Department')
     
     def _draw_budget_panel(self):
         """Draw the budget panel overlay."""

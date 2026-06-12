@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.5.0] - 2026-06-11
+
+### Added
+- **Test suite**: pytest harness with headless smoke test (`pip install -r requirements-dev.txt`, then `pytest`)
+- **Collapse notifications**: building collapses (fire or decay) now raise toast alerts
+- **Underfunding warnings**: dropping police/fire funding below 50% warns via notification
+
+### Changed
+- **Fire rebalance (major)**: fires now burn out on their own after ~40 ticks instead of burning forever outside fire station coverage — an uncovered fire badly damages a building and possibly a few neighbors, then dies
+- Fire spread is now fully gated by flammability; grass and roads act as firebreaks (fire no longer crosses open land)
+- Fire ignition is ~10x rarer and only flammable building tiles can ignite (no more arson on roads)
+- **Fire funding now works**: low funding shrinks fire station coverage radius (down to 50%) and slows extinguishing, as the README always claimed
+
+### Fixed
+- Burned rubble no longer regrows population, pays taxes, or conducts power — it must be bulldozed before rebuilding, as documented
+- Tools no longer charge money for no-ops: painting a tile with its existing type, bulldozing grass, or clicking out of bounds is free; drag-painting charges once per tile instead of once per mouse event
+- Drag-placed zones and roads only build on empty grass — no more silently paving over power plants and stations
+- Buildings on fire are no longer repaired by the decay system while burning
+
 ## [v0.4.0] - 2026-02-06
 
 ### Added

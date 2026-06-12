@@ -18,6 +18,7 @@ class DecaySystem:
     def __init__(self):
         self.police_funding = 1.0  # 0.0 to 1.0
         self.fire_funding = 1.0  # 0.0 to 1.0
+        self.events = []  # ('collapse', x, y) events for the notification system
 
     def update(self, grid, economy=None):
         """
@@ -78,9 +79,9 @@ class DecaySystem:
         for x in range(grid.width):
             for y in range(grid.height):
                 tile = grid.get_tile(x, y)
-                if tile is None or tile.is_burned:
+                if tile is None or tile.is_burned or tile.is_on_fire:
                     continue
-                
+
                 # Only repair damaged buildings
                 if tile.building_health < 1.0 and tile.building_health > 0:
                     tile.building_health = min(1.0, tile.building_health + repair_rate)
@@ -98,6 +99,7 @@ class DecaySystem:
                     if tile.type in ['residential', 'commercial', 'industrial']:
                         tile.is_burned = True  # Reuse burned state for collapsed
                         tile.population = 0
+                        self.events.append(('collapse', x, y))
 
     def get_building_status(self, tile):
         """

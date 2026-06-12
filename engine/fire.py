@@ -1,7 +1,14 @@
 """
-Fire System for SimCity Clone v0.4.0
+Fire System for SimCity Clone v0.5.0
 
 Manages fire ignition, spread, damage, and extinguishing mechanics.
+
+Design (classic SimCity style):
+- Fires are rare events that burn out on their own after BURN_DURATION ticks,
+  badly damaging (but usually not destroying) the building.
+- Spread is fully gated by flammability, so grass and roads act as firebreaks.
+- Fire stations extinguish fires in their radius much faster; fire funding
+  scales both the effective radius and the extinguish speed.
 """
 
 import random
@@ -10,25 +17,27 @@ import random
 class FireSystem:
     """System for managing fire mechanics in the city."""
 
-    # Fire configuration
-    IGNITION_CHANCE_INDUSTRIAL = 0.0001  # Per tick chance for industrial zones
-    IGNITION_CHANCE_POWER_PLANT = 0.00005  # Per tick chance for power plants
-    IGNITION_CHANCE_CRIME_BONUS = 0.00005  # Additional chance based on crime level
+    # Ignition (per tile, per tick — ticks run ~1/sec)
+    IGNITION_CHANCE_INDUSTRIAL = 0.00001
+    IGNITION_CHANCE_POWER_PLANT = 0.000005
+    IGNITION_CHANCE_CRIME_BONUS = 0.000005  # Arson, scaled by crime level
 
-    SPREAD_BASE_CHANCE = 0.03  # Base chance to spread to adjacent tile
-    SPREAD_INTENSITY_MULTIPLIER = 0.1  # How much intensity affects spread chance
+    # Spread: chance = (base + intensity * mult) * flammability, per neighbor per tick.
+    # Tuned so a fire's reproduction rate in dense city is near 1 — it consumes a
+    # small cluster, not the map.
+    SPREAD_BASE_CHANCE = 0.005
+    SPREAD_INTENSITY_MULTIPLIER = 0.01
 
-    DAMAGE_PER_TICK = 0.02  # Health damage per tick while on fire
+    DAMAGE_PER_TICK = 0.02  # Health damage per tick while on fire (scaled by intensity)
     INTENSITY_GROWTH = 0.03  # How fast fire intensity grows
-    INTENSITY_DECAY = 0.05  # How fast fire intensity decays (when fighting)
 
-    FIRE_STATION_RADIUS = 8  # Coverage radius for fire stations
-    EXTINGUISH_TICKS_COVERED = 3  # Ticks to extinguish in coverage
-    EXTINGUISH_TICKS_UNCOVERED = 6  # Ticks to extinguish outside coverage
+    BURN_DURATION = 40  # Ticks before a fire burns out on its own
+    FIRE_STATION_RADIUS = 8  # Coverage radius at full funding
+    EXTINGUISH_TICKS_COVERED = 3  # Ticks to extinguish in coverage at full funding
 
-    # Flammability by tile type (0.0 = non-flammable, 1.0 = highly flammable)
+    # Flammability by tile type (0.0 = non-flammable / firebreak)
     FLAMMABILITY = {
-        'grass': 0.1,
+        'grass': 0.0,  # Open land is a firebreak
         'road': 0.0,  # Roads don't burn
         'residential': 0.8,
         'commercial': 0.7,
@@ -43,15 +52,28 @@ class FireSystem:
         self.fire_stations = []  # List of (x, y) positions
         self.active_fires = []  # List of tiles currently on fire
         self.fire_ticks = {}  # Track how long each tile has been on fire: {(x,y): ticks}
+        self.fire_funding = 1.0  # Mirrors economy.service_funding['fire']
+        self.events = []  # ('collapse', x, y) events for the notification system
 
-    def update(self, grid):
+    def update(self, grid, economy=None):
         """Main update loop for fire system. Call once per game tick."""
+        if economy is not None:
+            self.fire_funding = economy.service_funding.get('fire', 1.0)
         self._update_fire_stations(grid)
         self._try_ignite_fires(grid)
         self._spread_fires(grid)
         self._apply_fire_damage(grid)
         self._try_extinguish_fires(grid)
         self._update_active_fires(grid)
+
+    def effective_radius(self):
+        """Coverage radius scaled by funding: 50% radius at zero funding."""
+        return self.FIRE_STATION_RADIUS * (0.5 + 0.5 * self.fire_funding)
+
+    def extinguish_ticks(self):
+        """Ticks to put out a covered fire; underfunding degrades toward burnout."""
+        return self.EXTINGUISH_TICKS_COVERED + (1.0 - self.fire_funding) * (
+            self.BURN_DURATION - self.EXTINGUISH_TICKS_COVERED)
 
     def _update_fire_stations(self, grid):
         """Scan grid for fire station positions."""
@@ -70,20 +92,20 @@ class FireSystem:
                 if tile is None or tile.is_on_fire or tile.is_burned:
                     continue
 
+                # Only flammable tiles can ignite
+                if self.FLAMMABILITY.get(tile.type, 0.0) <= 0:
+                    continue
+
                 ignition_chance = 0.0
 
-                # Industrial zones can catch fire
                 if tile.type == 'industrial':
                     ignition_chance += self.IGNITION_CHANCE_INDUSTRIAL
-
-                # Power plants can catch fire
                 elif tile.type == 'power_plant':
                     ignition_chance += self.IGNITION_CHANCE_POWER_PLANT
 
-                # Crime increases fire risk (arson)
+                # Crime increases fire risk (arson) — buildings only
                 ignition_chance += tile.crime_level * self.IGNITION_CHANCE_CRIME_BONUS
 
-                # Roll for ignition
                 if ignition_chance > 0 and random.random() < ignition_chance:
                     self._start_fire(tile)
 
@@ -129,13 +151,11 @@ class FireSystem:
     def _calculate_spread_chance(self, source, target):
         """Calculate probability of fire spreading from source to target."""
         flammability = self.FLAMMABILITY.get(target.type, 0.0)
-        if flammability == 0:
+        if flammability <= 0:
             return 0.0
 
-        base_chance = self.SPREAD_BASE_CHANCE * flammability
-        intensity_bonus = source.fire_intensity * self.SPREAD_INTENSITY_MULTIPLIER
-
-        return base_chance + intensity_bonus
+        return (self.SPREAD_BASE_CHANCE +
+                source.fire_intensity * self.SPREAD_INTENSITY_MULTIPLIER) * flammability
 
     def _apply_fire_damage(self, grid):
         """Apply damage to burning tiles and grow fire intensity."""
@@ -160,9 +180,10 @@ class FireSystem:
                     tile.population = 0
                     # Remove from fire tracking
                     self.fire_ticks.pop((x, y), None)
+                    self.events.append(('collapse', x, y))
 
     def _try_extinguish_fires(self, grid):
-        """Attempt to extinguish fires, especially in fire station coverage."""
+        """Extinguish fires: fast in fire station coverage, by burnout elsewhere."""
         tiles_to_extinguish = []
 
         for x in range(grid.width):
@@ -176,12 +197,11 @@ class FireSystem:
                 self.fire_ticks[key] = self.fire_ticks.get(key, 0) + 1
                 ticks = self.fire_ticks[key]
 
-                # Check if fire should be extinguished
-                # Only fires within fire station coverage can be extinguished
-                # Fires outside coverage burn until the building is destroyed
-                if self._is_in_coverage(x, y):
-                    if ticks >= self.EXTINGUISH_TICKS_COVERED:
-                        tiles_to_extinguish.append(tile)
+                if self._is_in_coverage(x, y) and ticks >= self.extinguish_ticks():
+                    tiles_to_extinguish.append(tile)
+                elif ticks >= self.BURN_DURATION:
+                    # Fires burn out on their own
+                    tiles_to_extinguish.append(tile)
 
         # Extinguish fires
         for tile in tiles_to_extinguish:
@@ -195,9 +215,10 @@ class FireSystem:
 
     def _is_in_coverage(self, x, y):
         """Check if a position is within fire station coverage."""
+        radius = self.effective_radius()
         for sx, sy in self.fire_stations:
             distance = abs(x - sx) + abs(y - sy)  # Manhattan distance
-            if distance <= self.FIRE_STATION_RADIUS:
+            if distance <= radius:
                 return True
         return False
 
@@ -217,10 +238,11 @@ class FireSystem:
     def get_coverage_tiles(self, grid):
         """Return set of (x, y) positions covered by fire stations."""
         covered = set()
+        radius = int(self.effective_radius())
         for sx, sy in self.fire_stations:
-            for dx in range(-self.FIRE_STATION_RADIUS, self.FIRE_STATION_RADIUS + 1):
-                for dy in range(-self.FIRE_STATION_RADIUS, self.FIRE_STATION_RADIUS + 1):
-                    if abs(dx) + abs(dy) <= self.FIRE_STATION_RADIUS:
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    if abs(dx) + abs(dy) <= radius:
                         x, y = sx + dx, sy + dy
                         if 0 <= x < grid.width and 0 <= y < grid.height:
                             covered.add((x, y))
