@@ -92,26 +92,13 @@ class DecaySystem:
                 tile.population = 0
                 self.events.append(('collapse', x, y))
 
-    def get_building_status(self, tile):
-        """
-        Get the operational status of a building.
-        
-        Returns:
-            'functional' - Building is fully operational
-            'degraded' - Building is damaged but functional
-            'non_functional' - Building has stopped working
-            'collapsed' - Building has been destroyed
-        """
-        if tile.is_burned:
-            return 'collapsed'
-        if tile.building_health <= 0:
-            return 'collapsed'
-        if tile.building_health < self.MIN_HEALTH_FUNCTIONAL:
-            return 'non_functional'
-        if tile.building_health < self.CRITICAL_HEALTH:
-            return 'degraded'
-        return 'functional'
+MIN_HEALTH_FUNCTIONAL = DecaySystem.MIN_HEALTH_FUNCTIONAL
 
-    def is_functional(self, tile):
-        """Check if a building is still functional."""
-        return tile.building_health >= self.MIN_HEALTH_FUNCTIONAL and not tile.is_burned
+
+def is_functional(tile):
+    """A building works only while intact and above the health threshold.
+
+    Non-functional buildings stop providing service coverage, producing
+    power, growing, and paying taxes.
+    """
+    return tile.building_health >= MIN_HEALTH_FUNCTIONAL and not tile.is_burned

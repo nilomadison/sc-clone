@@ -64,6 +64,7 @@ pytest
 | **Space** | Pause/resume simulation |
 | **- / +** | Simulation speed (1x/2x/3x) |
 | **B** | Open/close budget panel |
+| **D** | Open/close disasters panel (1-4 to trigger) |
 | **Up/Down** | Navigate budget options |
 | **Left/Right** | Adjust selected budget value |
 | **Esc** | Close overlays/budget |
@@ -84,7 +85,18 @@ pytest
 | Fire Station | $500 | $150/mo |
 | Bulldoze | $1 | — |
 
-The game runs on a calendar (one month per real-time minute at 1x speed). Taxes are collected and service upkeep is paid at the start of each month, based on zone population and the current tax rate.
+The game runs on a calendar (one month per real-time minute at 1x speed). Taxes are collected and service upkeep is paid at the start of each month, based on zone population, land value, and the current tax rate.
+
+Key feedback loops, in the spirit of the classics:
+- **RCI demand drives growth** — zones only develop while their demand bar is positive, and empty out under oversupply.
+- **Taxes shift demand** — 7% is neutral; raise rates for short-term cash at the cost of growth.
+- **Land value scales income** — desirable neighborhoods (near police, commerce, away from industry and crime) pay more tax.
+- **Power plants have capacity** — each supports 200 zone tiles; overload causes brownouts in the farthest zones (watch the power meter).
+- **Damaged buildings stop working** — below 25% health, stations lose coverage, plants stop producing, and zones stop paying taxes until they recover or collapse.
+
+## Disasters
+
+Press **D** and pick your poison: **Fire**, **Tornado**, **Earthquake**, or **Monster**. Tornadoes and monsters rampage across the map for a while, earthquakes damage buildings citywide and crack roads, and monsters set things on fire as they go.
 
 ## Fire Safety
 

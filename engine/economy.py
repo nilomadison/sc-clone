@@ -3,6 +3,7 @@ Economy system for SimCity Clone.
 Handles money, zone placement costs, and tax collection.
 """
 
+from engine.decay import is_functional
 from engine.tiles import field_map
 
 # Starting money for new games
@@ -51,16 +52,22 @@ class EconomySystem:
         return False
     
     def tax_income_per_tick(self, grid):
-        """Tax income rate from all intact, powered, populated zones."""
+        """Tax income rate from all functional, powered, populated zones.
+
+        Income per capita scales with land value (0.5x at value 0 up to
+        1.5x at value 100), so desirable neighborhoods pay more tax.
+        """
         income = 0.0
         tax_multiplier = self.tax_rate / 7.0  # 7% is baseline
 
         for x, y in grid.positions(*BASE_TAX_RATES):
             tile = grid.tiles[x][y]
 
-            # Only intact, powered tiles generate tax income
-            if tile.is_powered and tile.population > 0 and not tile.is_burned:
-                income += tile.population * BASE_TAX_RATES[tile.type] * tax_multiplier
+            # Only functional, powered tiles generate tax income
+            if tile.is_powered and tile.population > 0 and is_functional(tile):
+                value_factor = 0.5 + tile.land_value / 100
+                income += (tile.population * BASE_TAX_RATES[tile.type] *
+                           tax_multiplier * value_factor)
 
         return income
 

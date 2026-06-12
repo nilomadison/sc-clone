@@ -10,7 +10,7 @@ from engine.tiles import TILE_TYPES, TOOL_ORDER
 
 REQUIRED_FIELDS = {'label', 'hotkey', 'color', 'button_color', 'cost', 'upkeep',
                    'tax_rate', 'flammability', 'crime_rate', 'value_modifier',
-                   'conducts_power', 'needs_power', 'is_zone'}
+                   'conducts_power', 'needs_power', 'power_capacity', 'is_zone'}
 
 
 def test_registry_completeness():

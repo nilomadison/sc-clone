@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.7.0] - 2026-06-11
+
+### Added
+- **Disasters menu (D)**: trigger Fire, Tornado, Earthquake, or Monster, classic-style. Tornadoes and monsters walk the map for ~40 ticks wrecking everything in their path; earthquakes shake buildings across the city and crack roads
+- **Power plant capacity**: each plant supports 200 zone tiles; over capacity, the farthest zones brown out. The HUD shows power load (red when maxed)
+- **Land value matters**: tax income per capita scales 0.5x-1.5x with land value
+
+### Changed
+- **The RCI demand meter now drives growth**: zones grow in proportion to their demand and shrink under oversupply (it was previously cosmetic)
+- **Tax rate now affects demand**: 7% is neutral; higher rates suppress demand and can empty the city, lower rates stimulate it (20% is no longer free money)
+- **Building health matters**: buildings below 25% health stop functioning — stations lose their coverage, power plants stop producing, zones stop growing and paying taxes
+
 ## [v0.6.0] - 2026-06-11
 
 ### Added

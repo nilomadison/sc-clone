@@ -22,7 +22,9 @@ A SimCity-style game built on pygame-ce. `main.py` instantiates `engine.game.Gam
 
 `Game.update()` (engine/game.py) runs the simulation once every `SPEED_FRAMES[speed_index]` frames (60/30/20 for 1x/2x/3x; Space pauses). Each system is a class with an `update(grid)` method, called in a fixed order that matters because later systems read state written by earlier ones:
 
-power → growth → demand → crime → land_value → fire → decay
+power → growth → demand → crime → land_value → disasters → fire → decay
+
+Growth reads the *previous* tick's demand (`GrowthSystem.update(grid, demand_system)`); demand reads the tax rate (7% neutral — high taxes suppress demand). Power plants have finite capacity (registry `power_capacity`); the BFS browns out the farthest zones when over budget. Tax income scales with land value (0.5x–1.5x). Buildings below `decay.MIN_HEALTH_FUNCTIONAL` (25%) are gated everywhere via `decay.is_functional(tile)` — no coverage, power, growth, or taxes.
 
 `engine/clock.py` (`GameClock`) converts ticks to a calendar (60 ticks = 1 month). Taxes (`economy.collect_monthly_taxes`) and upkeep (`deduct_monthly_upkeep`) settle on month boundaries, not per tick.
 
@@ -49,7 +51,11 @@ Crime and land value use `engine/fields.py` `IncrementalField`: sources scatter 
 
 ### Events and notifications
 
-Systems that destroy buildings (`FireSystem`, `DecaySystem`) append `('collapse', x, y)` to their `events` list; `Game.update()` drains these into the toast `NotificationSystem` (engine/notifications.py) — the only notification mechanism.
+Systems that destroy buildings (`FireSystem`, `DecaySystem`, `DisasterSystem`) append `('collapse', x, y)` to their `events` list — disasters also append `('disaster', name)`; `Game._drain_system_events()` forwards these to the toast `NotificationSystem` (engine/notifications.py) — the only notification mechanism.
+
+### Disasters
+
+`engine/disasters.py`: instant disasters (fire, earthquake) mutate the grid in `trigger()`; tornado/monster become an `active` walker stepped by `update()` each tick and drawn by `Renderer.draw_disaster`. The D panel triggers them (keys 1-4 while open).
 
 ### UI and save modules
 

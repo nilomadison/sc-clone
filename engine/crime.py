@@ -7,6 +7,7 @@ IncrementalField — only sources whose strength changed since last tick
 re-scatter, so cost tracks city churn rather than map size.
 """
 
+from engine.decay import is_functional
 from engine.fields import IncrementalField, falloff_kernel, linear_kernel
 from engine.tiles import field_map
 
@@ -41,9 +42,11 @@ class CrimeSystem:
                 sources[(x, y)] = rate * tile.population / 10
         self._crime_field.refresh(sources)
 
-        # Police coverage (1.0 at the station, linear falloff to the radius edge)
+        # Police coverage (1.0 at the station, linear falloff to the radius
+        # edge); crumbling or burned stations provide none
         self._coverage_field.refresh(
-            {pos: 1.0 for pos in grid.positions('police')})
+            {(x, y): 1.0 for x, y in grid.positions('police')
+             if is_functional(grid.tiles[x][y])})
 
         # Combine into per-tile crime levels (fields are flat: x * height + y)
         crime = self._crime_field.field

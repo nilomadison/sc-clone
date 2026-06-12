@@ -5,6 +5,7 @@ from engine import save
 from engine.clock import GameClock
 from engine.crime import CrimeSystem
 from engine.decay import DecaySystem
+from engine.disasters import DISASTERS, MESSAGES as DISASTER_MESSAGES, DisasterSystem
 from engine.economy import EconomySystem
 from engine.fire import FireSystem
 from engine.grid import Grid
@@ -40,6 +41,7 @@ class Game:
         self.land_value_system = LandValueSystem()
         self.fire_system = FireSystem()
         self.decay_system = DecaySystem()
+        self.disaster_system = DisasterSystem()
         self.economy = EconomySystem()
 
         # Simulation clock: pause, speed, and the in-game calendar
@@ -53,10 +55,11 @@ class Game:
 
         self.notifications = NotificationSystem(self.screen_width, self.screen_height)
 
-        # Data overlays and budget panel
+        # Data overlays, budget panel, and disasters panel
         self.current_overlay = None  # None, 'crime', 'land_value', 'power', 'fire'
         self.show_budget = False
         self.budget_selection = 0  # 0=tax, 1=police funding, 2=fire funding
+        self.show_disasters = False
 
         self.current_tool = 'road'
 
@@ -165,6 +168,11 @@ class Game:
                 self.save_game()
             elif event.key == pygame.K_l:
                 self.load_game()
+        # Disaster selection while the disasters panel is open (1-4)
+        elif self.show_disasters and pygame.K_1 <= event.key <= pygame.K_4:
+            name = DISASTERS[event.key - pygame.K_1]
+            self.disaster_system.trigger(name, self.grid, self.fire_system)
+            self.show_disasters = False
         # Tool selection
         elif event.key in self.hotkey_tools:
             self.current_tool = self.hotkey_tools[event.key]
@@ -180,6 +188,10 @@ class Game:
         elif event.key == pygame.K_ESCAPE:
             self.current_overlay = None
             self.show_budget = False
+            self.show_disasters = False
+        # Disasters panel
+        elif event.key == pygame.K_d:
+            self.show_disasters = not self.show_disasters
         # Pause and simulation speed
         elif event.key == pygame.K_SPACE:
             self.paused = not self.paused
@@ -304,10 +316,11 @@ class Game:
         if self.tick_timer >= SPEED_FRAMES[self.speed_index]:
             self.tick_timer = 0
             self.power_system.update(self.grid)
-            self.growth_system.update(self.grid)
-            self.demand_system.update(self.grid)
+            self.growth_system.update(self.grid, self.demand_system)
+            self.demand_system.update(self.grid, self.economy.tax_rate)
             self.crime_system.update(self.grid)
             self.land_value_system.update(self.grid)
+            self.disaster_system.update(self.grid, self.fire_system)
             self.fire_system.update(self.grid, self.economy)
             self.decay_system.update(self.grid, self.economy)
             self.total_population = self._compute_population()
@@ -318,12 +331,17 @@ class Game:
                     self.grid, GameClock.TICKS_PER_MONTH)
                 self.economy.deduct_monthly_upkeep(self.grid)
 
-            # Forward system events (building collapses) to notifications
-            for system in (self.fire_system, self.decay_system):
-                for event in system.events:
-                    if event[0] == 'collapse':
-                        self.notifications.notify_building_collapse(event[1], event[2])
-                system.events.clear()
+            self._drain_system_events()
+
+    def _drain_system_events(self):
+        """Forward system events (collapses, disasters) to notifications."""
+        for system in (self.fire_system, self.decay_system, self.disaster_system):
+            for event in system.events:
+                if event[0] == 'collapse':
+                    self.notifications.notify_building_collapse(event[1], event[2])
+                elif event[0] == 'disaster':
+                    self.notifications.add(DISASTER_MESSAGES[event[1]], 'fire', 300)
+            system.events.clear()
 
     def render(self):
         self.renderer.draw(overlay_mode=self.current_overlay)
@@ -337,6 +355,9 @@ class Game:
                 self.renderer.draw_rci_preview(drag_rect, self.current_tool)
         else:
             self.renderer.draw_cursor(pygame.mouse.get_pos())
+
+        if self.disaster_system.active:
+            self.renderer.draw_disaster(self.disaster_system.active)
 
         self.ui.draw(self.screen)
 

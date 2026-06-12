@@ -180,6 +180,27 @@ class Renderer:
                 (fx + 3, fy + flame_height),
             ])
 
+    def draw_disaster(self, walker):
+        """Draw the active tornado/monster walker."""
+        sx, sy = self.world_to_screen(walker['x'], walker['y'])
+        cx, cy = sx + TILE_SIZE // 2, sy + TILE_SIZE // 2
+
+        if walker['kind'] == 'tornado':
+            # Gray swirl: stacked wobbling circles
+            for i, radius in enumerate((14, 10, 6)):
+                wobble_x = cx + random.randint(-3, 3)
+                shade = 90 + i * 40
+                pygame.draw.circle(self.screen, (shade, shade, shade),
+                                   (wobble_x, cy - 8 + i * 8), radius, 3)
+        else:  # monster
+            body = pygame.Rect(0, 0, TILE_SIZE + 8, TILE_SIZE + 8)
+            body.center = (cx, cy)
+            pygame.draw.rect(self.screen, (40, 140, 40), body)
+            pygame.draw.rect(self.screen, (20, 80, 20), body, 3)
+            # Eyes
+            pygame.draw.circle(self.screen, (255, 0, 0), (cx - 7, cy - 6), 4)
+            pygame.draw.circle(self.screen, (255, 0, 0), (cx + 7, cy - 6), 4)
+
     def draw_cursor(self, mouse_pos):
         mx, my = mouse_pos
         wx, wy = self.screen_to_world(mx, my)

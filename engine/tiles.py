@@ -19,6 +19,7 @@ Fields:
     value_modifier  Effect on nearby land value (+/-)
     conducts_power  Whether the power BFS flows through this type
     needs_power     Whether the tile requires power to function
+    power_capacity  Zone tiles this building can power (power plants only)
     is_zone         RCI zone (grows population, drag-to-fill placement)
 """
 
@@ -28,42 +29,42 @@ TILE_TYPES = {
         'color': (139, 90, 43), 'button_color': (100, 50, 50),
         'cost': 1, 'upkeep': 0, 'tax_rate': 0.0,
         'flammability': 0.0, 'crime_rate': 0.0, 'value_modifier': 0,
-        'conducts_power': False, 'needs_power': False, 'is_zone': False,
+        'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
     },
     'residential': {
         'label': 'Residential', 'hotkey': '1',
         'color': (0, 255, 0), 'button_color': (0, 200, 0),
         'cost': 100, 'upkeep': 0, 'tax_rate': 0.5,
         'flammability': 0.8, 'crime_rate': 0.05, 'value_modifier': 3,
-        'conducts_power': True, 'needs_power': True, 'is_zone': True,
+        'conducts_power': True, 'needs_power': True, 'power_capacity': 0, 'is_zone': True,
     },
     'commercial': {
         'label': 'Commercial', 'hotkey': '2',
         'color': (0, 0, 255), 'button_color': (0, 0, 200),
         'cost': 100, 'upkeep': 0, 'tax_rate': 2.0,
         'flammability': 0.7, 'crime_rate': 0.1, 'value_modifier': 5,
-        'conducts_power': True, 'needs_power': True, 'is_zone': True,
+        'conducts_power': True, 'needs_power': True, 'power_capacity': 0, 'is_zone': True,
     },
     'industrial': {
         'label': 'Industrial', 'hotkey': '3',
         'color': (255, 255, 0), 'button_color': (200, 200, 0),
         'cost': 100, 'upkeep': 0, 'tax_rate': 1.5,
         'flammability': 0.6, 'crime_rate': 0.3, 'value_modifier': -10,
-        'conducts_power': True, 'needs_power': True, 'is_zone': True,
+        'conducts_power': True, 'needs_power': True, 'power_capacity': 0, 'is_zone': True,
     },
     'road': {
         'label': 'Road', 'hotkey': '4',
         'color': (105, 105, 105), 'button_color': (100, 100, 100),
         'cost': 10, 'upkeep': 0, 'tax_rate': 0.0,
         'flammability': 0.0, 'crime_rate': 0.0, 'value_modifier': 5,
-        'conducts_power': False, 'needs_power': False, 'is_zone': False,
+        'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
     },
     'power_plant': {
         'label': 'Power Plant', 'hotkey': '5',
         'color': (255, 69, 0), 'button_color': (200, 50, 0),
         'cost': 3000, 'upkeep': 200, 'tax_rate': 0.0,
         'flammability': 0.4, 'crime_rate': 0.0, 'value_modifier': -15,
-        'conducts_power': True, 'needs_power': False, 'is_zone': False,
+        'conducts_power': True, 'needs_power': False, 'power_capacity': 200, 'is_zone': False,
     },
     'power_line': {
         # Pseudo-type: a tool that toggles the has_power_line overlay,
@@ -72,21 +73,21 @@ TILE_TYPES = {
         'color': (255, 215, 0), 'button_color': (200, 180, 0),
         'cost': 5, 'upkeep': 0, 'tax_rate': 0.0,
         'flammability': 0.0, 'crime_rate': 0.0, 'value_modifier': 0,
-        'conducts_power': True, 'needs_power': False, 'is_zone': False,
+        'conducts_power': True, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
     },
     'police': {
         'label': 'Police', 'hotkey': '7',
         'color': (0, 100, 255), 'button_color': (0, 100, 255),
         'cost': 500, 'upkeep': 100, 'tax_rate': 0.0,
         'flammability': 0.5, 'crime_rate': 0.0, 'value_modifier': 15,
-        'conducts_power': False, 'needs_power': False, 'is_zone': False,
+        'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
     },
     'fire_station': {
         'label': 'Fire Stn', 'hotkey': '8',
         'color': (178, 34, 34), 'button_color': (178, 34, 34),
         'cost': 500, 'upkeep': 150, 'tax_rate': 0.0,
         'flammability': 0.3, 'crime_rate': 0.0, 'value_modifier': 0,
-        'conducts_power': False, 'needs_power': False, 'is_zone': False,
+        'conducts_power': False, 'needs_power': False, 'power_capacity': 0, 'is_zone': False,
     },
 }
 

@@ -7,6 +7,7 @@ handling) and the systems.
 
 import pygame
 
+from engine.disasters import DISASTERS
 from engine.tiles import TILE_TYPES, TOOL_ORDER
 
 TOOLBAR_HEIGHT = 60
@@ -50,6 +51,8 @@ class UI:
         self.game.notifications.render(screen, self.font)
         if self.game.show_budget:
             self._draw_budget_panel(screen)
+        if self.game.show_disasters:
+            self._draw_disasters_panel(screen)
 
     def _draw_toolbar(self, screen):
         game = self.game
@@ -82,7 +85,7 @@ class UI:
         screen.blit(tool_text, (10, 10))
 
         # Instructions
-        instructions = ("1-8,0: Tools | C/V/P/F: Overlays | B: Budget | "
+        instructions = ("1-8,0: Tools | C/V/P/F: Overlays | B: Budget | D: Disasters | "
                         "Space: Pause | -/+: Speed | Ctrl+S/L: Save/Load")
         instr_surf = self.font.render(instructions, True, (180, 180, 180))
         screen.blit(instr_surf, (10, 40))
@@ -116,6 +119,15 @@ class UI:
         if game.last_income > 0:
             income_text = self.font.render(f'+${game.last_income}/mo', True, (150, 255, 150))
             screen.blit(income_text, (game.screen_width - 200, 35))
+
+        # Power load (red when over capacity = brownouts)
+        power = game.power_system
+        if power.capacity > 0 or power.used > 0:
+            over = power.used >= power.capacity
+            power_color = (255, 100, 100) if over else (255, 255, 150)
+            power_text = self.font.render(
+                f'Power: {power.used}/{power.capacity}', True, power_color)
+            screen.blit(power_text, (game.screen_width - 200, 52))
 
     def _draw_rci_bars(self, screen):
         """Draw RCI demand meter bars."""
@@ -243,3 +255,27 @@ class UI:
 
         close_text = self.font.render("Press B or Esc to close", True, (150, 150, 150))
         screen.blit(close_text, (panel_x + 70, y_offset))
+
+    def _draw_disasters_panel(self, screen):
+        """Draw the disasters panel overlay."""
+        game = self.game
+        panel_width = 280
+        panel_height = 90 + len(DISASTERS) * 28
+        panel_x = (game.screen_width - panel_width) // 2
+        panel_y = (game.screen_height - panel_height) // 2
+
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
+        pygame.draw.rect(screen, (40, 25, 25), panel_rect)
+        pygame.draw.rect(screen, (150, 80, 80), panel_rect, 3)
+
+        title = self.font_large.render("DISASTERS", True, (255, 200, 200))
+        screen.blit(title, (panel_x + 80, panel_y + 12))
+
+        y_offset = panel_y + 50
+        for i, name in enumerate(DISASTERS):
+            entry = self.font.render(f"{i + 1}: {name.title()}", True, (255, 255, 255))
+            screen.blit(entry, (panel_x + 40, y_offset))
+            y_offset += 28
+
+        close_text = self.font.render("Press D or Esc to close", True, (150, 150, 150))
+        screen.blit(close_text, (panel_x + 55, y_offset + 5))

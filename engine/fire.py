@@ -13,6 +13,7 @@ Design (classic SimCity style):
 
 import random
 
+from engine.decay import is_functional
 from engine.tiles import field_map
 
 
@@ -93,8 +94,10 @@ class FireSystem:
             self.BURN_DURATION - self.EXTINGUISH_TICKS_COVERED)
 
     def _update_fire_stations(self, grid):
-        """Read fire station positions from the grid index."""
-        self.fire_stations = list(grid.positions('fire_station'))
+        """Read functional fire station positions from the grid index."""
+        self.fire_stations = [
+            (x, y) for x, y in grid.positions('fire_station')
+            if is_functional(grid.tiles[x][y])]
 
     def _try_ignite_fires(self, grid):
         """Attempt to start new fires based on tile types and conditions."""
